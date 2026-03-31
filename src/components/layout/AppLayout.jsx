@@ -17,6 +17,8 @@ export default function AppLayout() {
   const isVideo = environment?.endsWith('.mp4') || environment?.endsWith('.webm');
   const isGradient = environment?.startsWith('gradient:');
   const gradientStyle = isGradient ? GRADIENT_MAP[environment] : null;
+  const base = import.meta.env.BASE_URL;
+  const videoSrc = isVideo ? `${base}${environment.replace(/^\//, '')}` : null;
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#060910] text-gray-200">
@@ -31,7 +33,7 @@ export default function AppLayout() {
               muted
               playsInline
               className="fixed inset-0 z-0 h-full w-full object-cover"
-              src={environment}
+              src={videoSrc}
             />
           ) : isGradient ? (
             <div
