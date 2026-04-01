@@ -450,7 +450,7 @@ function BadgeShowcase() {
   return (
     <GlassCard hover={false} accent="amber">
       <h3 className="mb-4 text-lg font-bold text-white">Badge Showcase</h3>
-      <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-4 xl:grid-cols-6">
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 md:grid-cols-6 lg:grid-cols-4 xl:grid-cols-6">
         {BADGES.map((badge) => {
           const Icon = badge.icon;
           return (
@@ -512,7 +512,7 @@ export default function Leaderboard() {
     <PageWrapper>
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-3xl font-extrabold">
+        <h1 className="text-2xl sm:text-3xl font-extrabold">
           <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
             Trend Hunter Leaderboard
           </span>

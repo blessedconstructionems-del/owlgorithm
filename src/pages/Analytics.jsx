@@ -162,10 +162,10 @@ export default function Analytics() {
     <PageWrapper>
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-        <h1 className="text-3xl font-bold gradient-text">Analytics</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold gradient-text">Analytics</h1>
 
         {/* Date range tabs */}
-        <div className="flex items-center gap-1 bg-white/5 rounded-lg p-0.5">
+        <div className="flex items-center gap-1 bg-white/5 rounded-lg p-0.5 overflow-x-auto scrollbar-none">
           {DATE_RANGES.map((range) => (
             <button
               key={range}
@@ -185,7 +185,7 @@ export default function Analytics() {
 
       {/* Custom date range inputs */}
       {dateRange === 'Custom' && (
-        <div className="flex items-center gap-3 mb-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-6">
           <div className="flex items-center gap-2">
             <label className="text-sm text-gray-400">From</label>
             <input
@@ -208,7 +208,7 @@ export default function Analytics() {
       )}
 
       {/* ── Overview Cards ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-8">
         {[
           {
             label: 'Total Reach',
@@ -323,7 +323,7 @@ export default function Analytics() {
       <GlassCard hover={false} accent="purple" className="mb-8">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-white">Engagement Over Time</h2>
-          <div className="flex gap-1 bg-white/5 rounded-lg p-0.5">
+          <div className="flex gap-1 bg-white/5 rounded-lg p-0.5 overflow-x-auto scrollbar-none">
             {['All', ...platformData.map((p) => p.platform)].map((p) => (
               <button
                 key={p}
@@ -428,7 +428,7 @@ export default function Analytics() {
 
       {/* ── Audience Demographics ── */}
       <h2 className="text-lg font-semibold text-white mb-4">Audience Demographics</h2>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 mb-8">
         {/* Age Groups */}
         <GlassCard hover={false}>
           <h3 className="text-sm font-medium text-gray-400 mb-4">Age Groups</h3>

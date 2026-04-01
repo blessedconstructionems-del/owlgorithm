@@ -146,7 +146,7 @@ export default function Settings() {
       <motion.div variants={stagger} initial="initial" animate="animate" className="space-y-8 max-w-4xl">
         {/* Header */}
         <motion.div variants={fadeUp}>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+          <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
             Settings
           </h1>
         </motion.div>

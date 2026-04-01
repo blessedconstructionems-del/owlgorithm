@@ -326,7 +326,7 @@ function WeekDetail({ week }) {
         </div>
 
         {/* 7-day grid */}
-        <div className="grid grid-cols-7 gap-2">
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2">
           {DAYS.map((day) => {
             const post = postsByDay[day];
             const isSelected = selectedDay === day;
@@ -481,7 +481,7 @@ export default function Strategy() {
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">
           <Target className="w-8 h-8 text-purple-400" />
-          <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-amber-400 bg-clip-text text-transparent">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-amber-400 bg-clip-text text-transparent">
             Content Strategy
           </h1>
         </div>
@@ -509,7 +509,7 @@ export default function Strategy() {
           ))}
         </div>
         <StackedBar pillars={pillars} />
-        <div className="flex justify-center gap-4 mt-2">
+        <div className="flex flex-wrap justify-center gap-3 sm:gap-4 mt-2">
           {pillars.map((p) => (
             <div key={p.id} className="flex items-center gap-1.5">
               <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: p.color }} />

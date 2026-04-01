@@ -782,7 +782,7 @@ export default function Scheduler() {
     <PageWrapper>
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-        <h1 className="text-3xl font-bold gradient-text">Content Scheduler</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold gradient-text">Content Scheduler</h1>
         <div className="flex items-center gap-3">
           {/* View toggle */}
           <div className="flex bg-white/5 rounded-lg p-0.5">
@@ -845,8 +845,8 @@ export default function Scheduler() {
 
             {/* Day-of-week headers */}
             <div className="grid grid-cols-7 gap-1 mb-2">
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
-                <div key={d} className="text-center text-xs font-medium text-gray-500 py-2">{d}</div>
+              {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+                <div key={i} className="text-center text-[10px] sm:text-xs font-medium text-gray-500 py-1 sm:py-2">{d}</div>
               ))}
             </div>
 
@@ -864,7 +864,7 @@ export default function Scheduler() {
                     key={i}
                     onClick={() => setSelectedDay(day)}
                     className={cn(
-                      'relative min-h-[72px] p-2 rounded-lg text-left transition-all border',
+                      'relative min-h-[48px] sm:min-h-[72px] p-1 sm:p-2 rounded-lg text-left transition-all border',
                       inMonth ? 'text-gray-200' : 'text-gray-700',
                       isSelected ? 'border-blue-500 bg-blue-500/10' : 'border-transparent hover:bg-white/5',
                       today && !isSelected && 'ring-2 ring-blue-500/40'
@@ -982,7 +982,7 @@ export default function Scheduler() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
           >
             {/* Backdrop */}
             <motion.div
@@ -998,9 +998,9 @@ export default function Scheduler() {
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 20 }}
               transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              className="relative w-full max-w-2xl max-h-[85vh] overflow-y-auto"
+              className="relative w-full sm:max-w-2xl max-h-[95vh] sm:max-h-[85vh] overflow-y-auto"
             >
-              <GlassCard hover={false} accent="cyan" className="!rounded-2xl p-6">
+              <GlassCard hover={false} accent="cyan" className="!rounded-t-2xl sm:!rounded-2xl p-4 sm:p-6">
                 <button
                   onClick={() => setShowWizard(false)}
                   className="absolute top-4 right-4 p-2 hover:bg-white/10 rounded-lg transition-colors z-10"

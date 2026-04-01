@@ -180,7 +180,7 @@ export default function OwlgorithmChat() {
             exit={{ scale: 0, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 300, damping: 25 }}
             onClick={() => setOpen(true)}
-            className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-2xl shadow-lg shadow-blue-500/25 transition-shadow hover:shadow-xl hover:shadow-blue-500/30 md:bottom-8 md:right-8"
+            className="fixed bottom-[88px] right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-2xl shadow-lg shadow-blue-500/25 transition-shadow hover:shadow-xl hover:shadow-blue-500/30 md:bottom-8 md:right-8"
             aria-label="Open Owlgorithm chat"
           >
             <motion.span
@@ -201,7 +201,7 @@ export default function OwlgorithmChat() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-            className="fixed bottom-0 right-0 z-50 flex h-full w-full flex-col overflow-hidden border-white/[0.06] bg-[#0a0d14] shadow-2xl sm:bottom-6 sm:right-6 sm:h-[500px] sm:w-[400px] sm:rounded-2xl sm:border md:bottom-8 md:right-8"
+            className="fixed inset-0 z-50 flex h-full w-full flex-col overflow-hidden border-white/[0.06] bg-[#0a0d14] shadow-2xl sm:inset-auto sm:bottom-6 sm:right-6 sm:h-[500px] sm:w-[400px] sm:rounded-2xl sm:border md:bottom-8 md:right-8"
           >
             {/* Header */}
             <div className="flex shrink-0 items-center justify-between border-b border-white/[0.06] bg-[#0f1219] px-4 py-3">

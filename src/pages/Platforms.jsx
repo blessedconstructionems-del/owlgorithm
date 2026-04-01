@@ -80,7 +80,7 @@ export default function Platforms() {
       <motion.div variants={stagger} initial="initial" animate="animate" className="space-y-8">
         {/* Header */}
         <motion.div variants={fadeUp}>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+          <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
             Connected Platforms
           </h1>
           <p className="text-gray-400 text-sm mt-1">Manage your social presence</p>
@@ -147,7 +147,7 @@ export default function Platforms() {
 
         {/* Platform Grid */}
         <motion.div variants={fadeUp}>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
             {platforms.map((platform, i) => {
               const connected = isConnected(platform.id);
               const isSyncing = syncing[platform.id];

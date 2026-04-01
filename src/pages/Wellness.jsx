@@ -145,7 +145,7 @@ export default function Wellness() {
         <motion.div variants={fadeUp} className="flex items-center gap-3">
           <Heart className="w-8 h-8 text-emerald-400" />
           <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-emerald-400 to-green-300 bg-clip-text text-transparent">
+            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-emerald-400 to-green-300 bg-clip-text text-transparent">
               Creator Wellness
             </h1>
             <p className="text-gray-400 text-sm mt-0.5">Take care of yourself while building your empire</p>
@@ -170,7 +170,7 @@ export default function Wellness() {
               </span>
               <span className="text-xs text-gray-500">Score: {burnoutScore}/100</span>
             </div>
-            <div className="mt-6 flex items-center gap-6 text-xs">
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-3 sm:gap-6 text-xs">
               <div className="flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
                 <span className="text-gray-400">0-30 Thriving</span>
@@ -317,7 +317,7 @@ export default function Wellness() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
                   transition={{ duration: 0.5 }}
-                  className="text-xl font-medium text-white/90 italic max-w-lg mx-auto px-4"
+                  className="text-base sm:text-xl font-medium text-white/90 italic max-w-lg mx-auto px-4"
                 >
                   &ldquo;{TIPS[tipIndex]}&rdquo;
                 </motion.p>
@@ -341,7 +341,7 @@ export default function Wellness() {
         {/* Weekly Wellness Summary */}
         <motion.div variants={fadeUp}>
           <h2 className="text-xl font-semibold text-white mb-4">Weekly Wellness Summary</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
             <GlassCard hover={false} accent="blue" className="text-center">
               <Calendar className="w-5 h-5 text-blue-400 mx-auto mb-2" />
               <AnimatedNumber value={14} className="text-2xl font-bold text-white" />

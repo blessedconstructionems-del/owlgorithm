@@ -158,7 +158,7 @@ function ClaimCard({ claim, index }) {
           <div className="flex-1 min-w-0 space-y-3">
             {/* headline row */}
             <div className="flex items-start justify-between gap-3">
-              <h3 className="text-lg font-bold text-white leading-snug">{claim.claim}</h3>
+              <h3 className="text-base sm:text-lg font-bold text-white leading-snug">{claim.claim}</h3>
               <StatusBadge status={claim.status} size="md" />
             </div>
 
@@ -356,7 +356,7 @@ export default function TruthRadar() {
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">
           <ShieldCheck className="w-8 h-8 text-purple-400" />
-          <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-purple-400 via-blue-400 to-cyan-400 bg-clip-text text-transparent">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-purple-400 via-blue-400 to-cyan-400 bg-clip-text text-transparent">
             Truth Radar
           </h1>
         </div>
@@ -397,7 +397,7 @@ export default function TruthRadar() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Check a claim..."
-            className="w-full pl-12 pr-28 py-3.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all"
+            className="w-full pl-12 pr-24 sm:pr-28 py-3.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm sm:text-base placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all"
           />
           <button
             type="submit"

@@ -39,7 +39,7 @@ export default function NightWatch() {
             <Sunrise className="w-10 h-10 text-amber-400 relative z-10" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-amber-400 bg-clip-text text-transparent">
+            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-amber-400 bg-clip-text text-transparent">
               Night Watch
             </h1>
             <p className="text-gray-400 text-sm mt-0.5">While you were sleeping...</p>
@@ -82,7 +82,7 @@ export default function NightWatch() {
         <motion.div variants={fadeUp}>
           <div className="flex items-center gap-2 mb-4">
             <Sparkles className="w-5 h-5 text-emerald-400" />
-            <h2 className="text-xl font-semibold text-white">New Emerging Trends</h2>
+            <h2 className="text-lg sm:text-xl font-semibold text-white">New Emerging Trends</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {today.emergingTrends.map((trend, i) => (
@@ -137,7 +137,7 @@ export default function NightWatch() {
         <motion.div variants={fadeUp}>
           <div className="flex items-center gap-2 mb-4">
             <Flame className="w-5 h-5 text-orange-400" />
-            <h2 className="text-xl font-semibold text-white">Trends Entering Viral</h2>
+            <h2 className="text-lg sm:text-xl font-semibold text-white">Trends Entering Viral</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {today.viralTrends.map((trend, i) => (
@@ -184,7 +184,7 @@ export default function NightWatch() {
         <motion.div variants={fadeUp}>
           <div className="flex items-center gap-2 mb-4">
             <TrendingDown className="w-5 h-5 text-red-400" />
-            <h2 className="text-xl font-semibold text-white">Declining Trends</h2>
+            <h2 className="text-lg sm:text-xl font-semibold text-white">Declining Trends</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {today.decliningTrends.map((trend, i) => (
@@ -214,7 +214,7 @@ export default function NightWatch() {
         <motion.div variants={fadeUp}>
           <div className="flex items-center gap-2 mb-4">
             <Lightbulb className="w-5 h-5 text-yellow-400" />
-            <h2 className="text-xl font-semibold text-white">Top Opportunities</h2>
+            <h2 className="text-lg sm:text-xl font-semibold text-white">Top Opportunities</h2>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {today.opportunities.map((opp, i) => (
@@ -254,7 +254,7 @@ export default function NightWatch() {
         <motion.div variants={fadeUp}>
           <div className="flex items-center gap-2 mb-4">
             <Eye className="w-5 h-5 text-blue-400" />
-            <h2 className="text-xl font-semibold text-white">Past 7 Days</h2>
+            <h2 className="text-lg sm:text-xl font-semibold text-white">Past 7 Days</h2>
           </div>
           <div className="space-y-2">
             {pastReports.map((report) => {
@@ -279,7 +279,7 @@ export default function NightWatch() {
                         {format(parseISO(report.date), 'EEEE, MMM do')}
                       </span>
                     </div>
-                    <div className="flex items-center gap-4 text-xs text-gray-500">
+                    <div className="hidden sm:flex items-center gap-4 text-xs text-gray-500">
                       <span className="text-emerald-400">{report.emergingTrends.length} emerging</span>
                       <span className="text-orange-400">{report.viralTrends.length} viral</span>
                       <span className="text-red-400">{report.decliningTrends.length} declining</span>

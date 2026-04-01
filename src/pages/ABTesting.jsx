@@ -110,7 +110,7 @@ function WizardModal({ onClose }) {
 
   return (
     <motion.div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -119,7 +119,7 @@ function WizardModal({ onClose }) {
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
       <motion.div
-        className="relative w-full max-w-2xl rounded-2xl border border-white/10 bg-[#0f1629]/95 p-6 shadow-2xl backdrop-blur-xl"
+        className="relative w-full max-h-[95vh] overflow-y-auto sm:max-w-2xl rounded-t-2xl sm:rounded-2xl border border-white/10 bg-[#0f1629]/95 p-4 sm:p-6 shadow-2xl backdrop-blur-xl"
         initial={{ scale: 0.9, y: 20 }}
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.9, y: 20 }}
@@ -807,7 +807,7 @@ export default function ABTesting() {
       {/* Header */}
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold">
+          <h1 className="text-2xl sm:text-3xl font-extrabold">
             <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
               A/B Testing Lab
             </span>
@@ -825,13 +825,13 @@ export default function ABTesting() {
       </div>
 
       {/* Tabs */}
-      <div className="mb-6 flex gap-1 rounded-xl bg-white/5 p-1">
+      <div className="mb-6 flex gap-1 rounded-xl bg-white/5 p-1 overflow-x-auto scrollbar-none">
         {TABS.map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={cn(
-              'relative flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition-all',
+              'relative flex-1 rounded-lg px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold transition-all whitespace-nowrap',
               activeTab === tab ? 'text-white' : 'text-gray-400 hover:text-gray-200'
             )}
           >

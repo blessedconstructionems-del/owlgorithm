@@ -28,6 +28,7 @@ import PlatformIcon from '@/components/shared/PlatformIcon';
 import CircularProgress from '@/components/shared/CircularProgress';
 
 import { trends as allTrends } from '@/data/trends';
+import TrendDNA from '@/components/trends/TrendDNA';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -194,14 +195,14 @@ function TrendDetailModal({ trend, onClose }) {
 
   return (
     <motion.div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       onClick={onClose}
     >
       <motion.div
-        className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto glass-card rounded-2xl p-6 space-y-6"
+        className="relative w-full max-w-2xl max-h-[100vh] sm:max-h-[90vh] overflow-y-auto glass-card rounded-t-2xl sm:rounded-2xl p-4 sm:p-6 space-y-5 sm:space-y-6"
         initial={{ y: 80, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 80, opacity: 0 }}
@@ -314,11 +315,14 @@ function TrendDetailModal({ trend, onClose }) {
           </div>
         )}
 
+        {/* Trend DNA — Origin Story */}
+        <TrendDNA trend={trend} />
+
         {/* Stats row */}
-        <div className="grid grid-cols-3 gap-3 text-center">
-          <div className="rounded-xl bg-white/5 p-3">
-            <p className="text-xs text-gray-400 mb-1">Momentum</p>
-            <p className="text-xl font-bold text-white">{trend.momentum}</p>
+        <div className="grid grid-cols-3 gap-2 sm:gap-3 text-center">
+          <div className="rounded-xl bg-white/5 p-2 sm:p-3">
+            <p className="text-[10px] sm:text-xs text-gray-400 mb-1">Momentum</p>
+            <p className="text-lg sm:text-xl font-bold text-white">{trend.momentum}</p>
           </div>
           <div className="rounded-xl bg-white/5 p-3">
             <p className="text-xs text-gray-400 mb-1">Growth</p>
@@ -447,7 +451,7 @@ export default function TrendRadar() {
             a) Header
         ============================================================ */}
         <motion.div variants={stagger.item}>
-          <h1 className="text-3xl font-bold gradient-text mb-1">Trend Radar</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold gradient-text mb-1">Trend Radar</h1>
           <p className="text-gray-400 text-sm">
             Track emerging trends before they peak
           </p>
@@ -461,7 +465,7 @@ export default function TrendRadar() {
         >
           <GlassCard
             accent="blue"
-            className="sticky top-0 z-30 -mx-6 px-6 py-4 rounded-none border-x-0 border-t-0 space-y-3"
+            className="sticky top-0 z-30 -mx-3 px-3 sm:-mx-6 sm:px-6 py-4 rounded-none border-x-0 border-t-0 space-y-3"
           >
           {/* Platform chips */}
           <div className="space-y-1.5">
@@ -485,7 +489,7 @@ export default function TrendRadar() {
           </div>
 
           {/* Category + Saturation + Sort */}
-          <div className="flex flex-wrap items-end gap-6">
+          <div className="flex flex-wrap items-end gap-3 sm:gap-6">
             {/* Category */}
             <div className="space-y-1.5">
               <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">

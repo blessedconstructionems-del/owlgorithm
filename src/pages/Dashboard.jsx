@@ -22,6 +22,8 @@ import AnimatedNumber from '@/components/shared/AnimatedNumber';
 import { trends } from '@/data/trends';
 import { posts } from '@/data/posts';
 import { dailyData } from '@/data/analytics';
+import TrendPulseRadar from '@/components/dashboard/TrendPulseRadar';
+import OpportunityScanner from '@/components/dashboard/OpportunityScanner';
 
 const stagger = {
   container: { animate: { transition: { staggerChildren: 0.08 } } },
@@ -223,7 +225,7 @@ export default function Dashboard() {
                   </div>
                 ) : (
                   <div className="flex items-end gap-2">
-                    <AnimatedNumber value={card.value} suffix={card.suffix || ''} className="text-3xl font-extrabold text-white" />
+                    <AnimatedNumber value={card.value} suffix={card.suffix || ''} className="text-2xl sm:text-3xl font-extrabold text-white" />
                     {card.change && (
                       <span className={cn(
                         'inline-flex items-center gap-0.5 text-xs font-semibold px-2 py-0.5 rounded-full mb-1',
@@ -238,6 +240,16 @@ export default function Dashboard() {
               </GlassCard>
             );
           })}
+        </motion.div>
+
+        {/* ── Trend Pulse Radar + Opportunity Scanner ── */}
+        <motion.div variants={stagger.item} className="grid grid-cols-1 xl:grid-cols-5 gap-6">
+          <div className="xl:col-span-3">
+            <TrendPulseRadar />
+          </div>
+          <div className="xl:col-span-2">
+            <OpportunityScanner />
+          </div>
         </motion.div>
 
         {/* ── Trending Now ── */}
