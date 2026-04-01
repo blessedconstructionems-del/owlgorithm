@@ -42,7 +42,7 @@ function NotificationDropdown({ notifications, onRead, onClose }) {
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -8, scale: 0.95 }}
       transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-      className="absolute right-0 top-full mt-3 w-[90vw] max-w-[380px] overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0f1219] shadow-2xl shadow-black/60 z-50 -right-2 sm:right-0"
+      className="fixed left-2 right-2 top-[64px] sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-3 sm:w-[380px] overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0f1219] shadow-2xl shadow-black/60 z-[100]"
     >
       <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-4">
         <h3 className="text-sm font-semibold text-white">Notifications</h3>

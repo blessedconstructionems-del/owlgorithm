@@ -25,7 +25,7 @@ const GlassCard = memo(function GlassCard({
   return (
     <Component
       className={cn(
-        'glass-card rounded-2xl p-6 relative',
+        'glass-card rounded-2xl p-4 sm:p-6 relative',
         hover && 'glass-card-hover cursor-pointer',
         gradient && 'gradient-border',
         glow === 'blue' && 'glow-blue',

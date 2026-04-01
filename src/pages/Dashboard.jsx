@@ -132,13 +132,13 @@ export default function Dashboard() {
             <div className="absolute -bottom-24 -left-12 w-72 h-72 rounded-full bg-purple-400/[0.08] blur-3xl" />
             <div className="absolute top-1/2 right-1/4 w-32 h-32 rounded-full bg-cyan-400/[0.06] blur-2xl" />
 
-            <div className="relative px-8 py-10 md:py-12 flex items-center justify-between">
+            <div className="relative px-4 py-8 sm:px-8 md:py-12 flex items-center justify-between">
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-blue-200/70 text-sm font-medium">
                   <Sparkles size={14} />
                   <span>Powered Insights</span>
                 </div>
-                <h1 className="text-3xl md:text-4xl font-extrabold text-white tracking-tight">
+                <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-white tracking-tight">
                   {getGreeting()}, {user.name}
                 </h1>
                 <p className="text-blue-100/60 text-base max-w-md">
@@ -202,11 +202,11 @@ export default function Dashboard() {
         )}
 
         {/* ── Quick Stats ── */}
-        <motion.div variants={stagger.item} className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <motion.div variants={stagger.item} className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
           {STAT_CARDS.map((card) => {
             const Icon = card.icon;
             return (
-              <GlassCard key={card.label} hover={false} accent={card.cardAccent} className="!p-5 space-y-3">
+              <GlassCard key={card.label} hover={false} accent={card.cardAccent} className="!p-3 sm:!p-5 space-y-2 sm:space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">{card.label}</span>
                   <div className={cn('w-9 h-9 rounded-xl bg-gradient-to-br flex items-center justify-center shadow-lg', card.iconAccent)}>
