@@ -55,7 +55,7 @@ export default function AppLayout() {
       <div className="relative z-10 flex min-w-0 flex-1 flex-col">
         <TopBar />
         <main className="flex-1 overflow-y-auto pb-24 md:pb-6">
-          <div className="mx-auto max-w-[1400px] px-5 py-6 sm:px-8 lg:px-10">
+          <div className="mx-auto max-w-[1400px] px-3 py-4 sm:px-8 sm:py-6 lg:px-10">
             <Outlet />
           </div>
         </main>

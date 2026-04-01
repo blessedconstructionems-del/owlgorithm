@@ -42,7 +42,7 @@ function NotificationDropdown({ notifications, onRead, onClose }) {
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -8, scale: 0.95 }}
       transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-      className="absolute right-0 top-full mt-3 w-[380px] overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0f1219] shadow-2xl shadow-black/60"
+      className="absolute right-0 top-full mt-3 w-[90vw] max-w-[380px] overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0f1219] shadow-2xl shadow-black/60 z-50 -right-2 sm:right-0"
     >
       <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-4">
         <h3 className="text-sm font-semibold text-white">Notifications</h3>
@@ -149,9 +149,9 @@ export default function TopBar() {
   );
 
   return (
-    <header className="sticky top-0 z-30 flex h-[72px] shrink-0 items-center gap-4 border-b border-white/[0.08] bg-[#060910]/70 px-5 backdrop-blur-xl sm:px-8">
+    <header className="sticky top-0 z-30 flex h-[60px] sm:h-[72px] shrink-0 items-center gap-3 sm:gap-4 border-b border-white/[0.08] bg-[#060910]/70 px-3 backdrop-blur-xl sm:px-8">
       {/* Page title */}
-      <h1 className="shrink-0 text-lg font-bold text-white tracking-tight">
+      <h1 className="shrink-0 text-base sm:text-lg font-bold text-white tracking-tight truncate">
         {pageTitle}
       </h1>
 
