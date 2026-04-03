@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom'
 import AppLayout from './components/layout/AppLayout'
 import Dashboard from './pages/Dashboard'
+import RevenueGodMode from './pages/RevenueGodMode'
 import TrendRadar from './pages/TrendRadar'
 import Scheduler from './pages/Scheduler'
 import Analytics from './pages/Analytics'
@@ -18,6 +19,7 @@ function App() {
     <Routes>
       <Route element={<AppLayout />}>
         <Route path="/" element={<Dashboard />} />
+        <Route path="/revenue-god-mode" element={<RevenueGodMode />} />
         <Route path="/trends" element={<TrendRadar />} />
         <Route path="/scheduler" element={<Scheduler />} />
         <Route path="/analytics" element={<Analytics />} />

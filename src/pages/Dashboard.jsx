@@ -18,12 +18,14 @@ import StatusBadge from '@/components/shared/StatusBadge';
 import PlatformIcon from '@/components/shared/PlatformIcon';
 import CircularProgress from '@/components/shared/CircularProgress';
 import AnimatedNumber from '@/components/shared/AnimatedNumber';
+import SignalMark from '@/components/shared/SignalMark';
 
 import { trends } from '@/data/trends';
 import { posts } from '@/data/posts';
 import { dailyData } from '@/data/analytics';
 import TrendPulseRadar from '@/components/dashboard/TrendPulseRadar';
 import OpportunityScanner from '@/components/dashboard/OpportunityScanner';
+import { DEFAULT_GOD_MODE_CONFIG, buildRevenueSnapshot, formatCompactCurrency } from '@/data/revenueGodMode';
 
 const stagger = {
   container: { animate: { transition: { staggerChildren: 0.08 } } },
@@ -81,13 +83,14 @@ const STAT_CARDS = [
 ];
 
 const QUICK_ACTIONS = [
+  { icon: Zap, title: 'Enter Revenue God Mode', desc: 'Activate autonomous offers, paid pushes, and recovery loops', link: '/revenue-god-mode' },
   { icon: Radar, title: 'Find trending topics', desc: 'Discover emerging opportunities tailored to your niche', link: '/trends' },
-  { icon: Sparkles, title: 'Generate post ideas', desc: 'Smart content suggestions based on live trends', link: '/scheduler' },
-  { icon: BarChart3, title: 'Analyze best content', desc: 'See what drives engagement and why', link: '/analytics' },
+  { icon: BarChart3, title: 'Review your channels', desc: 'Tune the channel mix feeding your money paths', link: '/platforms' },
 ];
 
 export default function Dashboard() {
   const { user, onboardingChecklist, updateChecklist } = useApp();
+  const revenuePreview = useMemo(() => buildRevenueSnapshot(DEFAULT_GOD_MODE_CONFIG), []);
 
   const checklistItems = useMemo(() => [
     { key: 'connectPlatform', label: 'Connect a platform' },
@@ -138,24 +141,61 @@ export default function Dashboard() {
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-blue-200/70 text-sm font-medium">
                   <Sparkles size={14} />
-                  <span>Powered Insights</span>
+                  <span>Monetize Everything™</span>
                 </div>
                 <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-white tracking-tight">
                   {getGreeting()}, {user.name}
                 </h1>
                 <p className="text-blue-100/60 text-base max-w-md">
-                  Here's what's trending in your world today. You have <span className="text-white font-semibold">3 emerging opportunities</span> waiting.
+                  Revenue God Mode is ready to route your next money path. You have <span className="text-white font-semibold">3 emerging opportunities</span> and a projected {formatCompactCurrency(revenuePreview.projectedLiftMid)} 30-day upside waiting.
                 </p>
               </div>
               <div className="hidden lg:flex items-center gap-4">
                 <div className="animate-float">
-                  <div className="w-24 h-24 rounded-2xl bg-white/[0.08] backdrop-blur border border-white/[0.12] flex items-center justify-center text-5xl shadow-2xl">
-                    🦉
-                  </div>
+                  <SignalMark className="h-24 w-24 rounded-2xl border-white/[0.12] bg-[linear-gradient(160deg,rgba(8,15,28,0.94),rgba(14,86,122,0.88))] shadow-2xl" />
                 </div>
               </div>
             </div>
           </div>
+        </motion.div>
+
+        <motion.div variants={stagger.item}>
+          <GlassCard hover={false} accent="emerald" className="space-y-4">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-300/70">Flagship Engine</p>
+                <h2 className="text-2xl font-bold text-white">Revenue God Mode™</h2>
+                <p className="max-w-2xl text-sm text-gray-400">
+                  Turn content, traffic, creators, offers, carts, and channels into one self-optimizing revenue loop with guardrails you control.
+                </p>
+              </div>
+              <Link
+                to="/revenue-god-mode"
+                className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-400 to-cyan-400 px-5 py-3 text-sm font-semibold text-slate-950 transition-opacity hover:opacity-90"
+              >
+                Enter Revenue God Mode
+                <ArrowUpRight size={16} />
+              </Link>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Projected Lift</p>
+                <p className="mt-2 text-2xl font-bold text-white">{formatCompactCurrency(revenuePreview.projectedLiftMid)}</p>
+                <p className="mt-1 text-xs text-gray-400">Mid-case 30-day revenue under launch guardrails</p>
+              </div>
+              <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Live Paths</p>
+                <p className="mt-2 text-2xl font-bold text-white">{revenuePreview.livePathCount}</p>
+                <p className="mt-1 text-xs text-gray-400">{revenuePreview.queuedDeployments} more ready to deploy</p>
+              </div>
+              <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Leakage Control</p>
+                <p className="mt-2 text-2xl font-bold text-white">{formatCompactCurrency(revenuePreview.preventedLeakage)}</p>
+                <p className="mt-1 text-xs text-gray-400">Monthly revenue preserved before it bleeds out</p>
+              </div>
+            </div>
+          </GlassCard>
         </motion.div>
 
         {/* ── Getting Started ── */}
@@ -407,7 +447,7 @@ export default function Dashboard() {
 
         {/* ── Quick Actions ── */}
         <motion.div variants={stagger.item}>
-          <h2 className="text-lg font-bold text-white mb-5">Owlgorithm</h2>
+          <h2 className="text-lg font-bold text-white mb-5">Command Actions</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {QUICK_ACTIONS.map(({ icon: Icon, title, desc, link }) => (
               <Link key={title} to={link}>

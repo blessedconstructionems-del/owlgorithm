@@ -4,38 +4,25 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
   Radar,
-  Calendar,
-  BarChart3,
-  FlaskConical,
-  Trophy,
-  ShieldCheck,
-  Target,
-  Moon,
   Link2,
-  Heart,
   Settings,
   ChevronLeft,
   ChevronRight,
+  Zap,
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { cn } from '@/lib/utils';
+import SignalMark from '@/components/shared/SignalMark';
 
 const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { path: '/revenue-god-mode', label: 'Revenue God Mode', icon: Zap },
   { path: '/trends', label: 'Trend Radar', icon: Radar },
-  { path: '/scheduler', label: 'Scheduler', icon: Calendar },
-  { path: '/analytics', label: 'Analytics', icon: BarChart3 },
-  { path: '/ab-testing', label: 'A/B Testing', icon: FlaskConical },
-  { path: '/leaderboard', label: 'Leaderboard', icon: Trophy },
-  { path: '/truth-radar', label: 'Truth Radar', icon: ShieldCheck },
-  { path: '/strategy', label: 'Strategy', icon: Target },
-  { path: '/night-watch', label: 'Night Watch', icon: Moon },
   { path: '/platforms', label: 'Platforms', icon: Link2 },
-  { path: '/wellness', label: 'Wellness', icon: Heart },
   { path: '/settings', label: 'Settings', icon: Settings },
 ];
 
-const MOBILE_NAV = NAV_ITEMS.slice(0, 5).concat(NAV_ITEMS[11]); // first 5 + Settings
+const MOBILE_NAV = NAV_ITEMS;
 
 function NavItem({ item, collapsed, isActive }) {
   const Icon = item.icon;
@@ -131,9 +118,7 @@ function DesktopSidebar() {
 
       {/* Logo */}
       <div className="flex h-[72px] shrink-0 items-center gap-3 px-5 border-b border-white/[0.04]">
-        <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500/20 to-purple-600/20 border border-white/[0.08]">
-          <span className="text-xl" role="img" aria-label="Owlgorithm">🦉</span>
-        </div>
+        <SignalMark className="h-10 w-10 shrink-0" />
         <AnimatePresence>
           {!sidebarCollapsed && (
             <motion.div
@@ -147,7 +132,7 @@ function DesktopSidebar() {
                 Owlgorithm
               </span>
               <span className="text-[10px] text-gray-600 font-medium tracking-wider uppercase">
-                Intelligence Platform
+                Signal Command
               </span>
             </motion.div>
           )}

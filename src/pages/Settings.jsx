@@ -36,12 +36,6 @@ const NOTIFICATION_SETTINGS = [
 
 const ENVIRONMENTS = [
   {
-    id: 'snowy-owl',
-    name: 'Snowy Owl',
-    value: '/snowy-owl.mp4',
-    preview: 'linear-gradient(135deg, #1a2332, #2d3a4a, #e8edf2)',
-  },
-  {
     id: 'fantasy-mountain',
     name: 'Fantasy Mountain',
     value: '/fantasy-mountain-landscape.1920x1080.mp4',
@@ -96,12 +90,12 @@ function Toggle({ checked, onChange }) {
 }
 
 export default function Settings() {
-  const { user, connectedPlatforms, environment, setEnvironment } = useApp();
+  const { user, updateUser, connectedPlatforms, environment, setEnvironment } = useApp();
 
   // Profile state
   const [name, setName] = useState(user.name);
   const [email, setEmail] = useState(user.email);
-  const [bio, setBio] = useState('Marketing strategist & trend hunter \u{1F989}');
+  const [bio, setBio] = useState('Marketing strategist focused on trend intelligence and launch execution.');
   const [profileSaved, setProfileSaved] = useState(false);
 
   // Niche state
@@ -118,9 +112,10 @@ export default function Settings() {
   const [theme, setTheme] = useState('dark');
 
   const handleSaveProfile = useCallback(() => {
+    updateUser({ name, email });
     setProfileSaved(true);
     setTimeout(() => setProfileSaved(false), 2000);
-  }, []);
+  }, [email, name, updateUser]);
 
   const toggleNiche = useCallback((niche) => {
     setSelectedNiches((prev) =>

@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 
 const ROUTE_TITLES = {
   '/': 'Dashboard',
+  '/revenue-god-mode': 'Revenue God Mode',
   '/trends': 'Trend Radar',
   '/scheduler': 'Content Scheduler',
   '/analytics': 'Analytics',
@@ -161,7 +162,7 @@ export default function TopBar() {
           <Search size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 transition-colors group-focus-within:text-blue-400" />
           <input
             type="text"
-            placeholder="Search trends, posts, analytics..."
+            placeholder="Search revenue paths, offers, channels..."
             readOnly
             className="w-full rounded-xl border border-white/[0.06] bg-white/[0.03] py-2.5 pl-10 pr-16 text-sm text-gray-400 placeholder-gray-600 outline-none transition-all focus:border-blue-500/30 focus:bg-white/[0.05] focus:ring-1 focus:ring-blue-500/20"
           />

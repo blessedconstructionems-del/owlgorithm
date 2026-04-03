@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Send } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import SignalMark from '@/components/shared/SignalMark';
 
 const ROUTE_LABELS = {
   '/': 'Dashboard',
@@ -41,12 +42,12 @@ const WELCOME_MESSAGES = [
   {
     id: 'welcome-1',
     role: 'ai',
-    text: "Hey Amy! \uD83D\uDC4B I'm your Owlgorithm assistant.",
+    text: 'Trend desk online. I can help you spot momentum shifts, shape creative angles, and prioritize what to ship next.',
   },
   {
     id: 'welcome-2',
     role: 'ai',
-    text: 'I can help you find trending topics, write captions, or analyze your content. What would you like to do?',
+    text: 'Ask for live trend direction, caption options, or a fast read on your current performance.',
   },
 ];
 
@@ -81,9 +82,7 @@ function ChatMessage({ message }) {
       className={cn('flex', isUser ? 'justify-end' : 'justify-start')}
     >
       {!isUser && (
-        <div className="mr-2 mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20 text-sm">
-          🦉
-        </div>
+        <SignalMark className="mr-2 mt-1 h-7 w-7 shrink-0 rounded-full" />
       )}
       <div
         className={cn(
@@ -183,12 +182,7 @@ export default function OwlgorithmChat() {
             className="fixed bottom-[88px] right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-2xl shadow-lg shadow-blue-500/25 transition-shadow hover:shadow-xl hover:shadow-blue-500/30 md:bottom-8 md:right-8"
             aria-label="Open Owlgorithm chat"
           >
-            <motion.span
-              animate={{ scale: [1, 1.1, 1] }}
-              transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-            >
-              🦉
-            </motion.span>
+            <SignalMark className="h-9 w-9 rounded-full border-white/15 bg-[linear-gradient(160deg,rgba(10,18,34,0.96),rgba(12,74,110,0.9))]" />
           </motion.button>
         )}
       </AnimatePresence>
@@ -206,7 +200,7 @@ export default function OwlgorithmChat() {
             {/* Header */}
             <div className="flex shrink-0 items-center justify-between border-b border-white/[0.06] bg-[#0f1219] px-4 py-3">
               <div className="flex items-center gap-2.5">
-                <span className="text-xl">🦉</span>
+                <SignalMark className="h-9 w-9 rounded-full" />
                 <div>
                   <h3 className="text-sm font-semibold text-white">
                     Owlgorithm
@@ -236,9 +230,7 @@ export default function OwlgorithmChat() {
               ))}
               {typing && (
                 <div className="flex items-start">
-                  <div className="mr-2 mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20 text-sm">
-                    🦉
-                  </div>
+                  <SignalMark className="mr-2 mt-1 h-7 w-7 shrink-0 rounded-full" />
                   <div className="rounded-2xl rounded-bl-md bg-[#151a25]">
                     <TypingIndicator />
                   </div>
@@ -270,7 +262,7 @@ export default function OwlgorithmChat() {
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask Owlgorithm anything..."
+                placeholder="Ask for a trend, angle, or next move..."
                 disabled={typing}
                 className="flex-1 rounded-lg border border-white/[0.06] bg-white/[0.04] px-3 py-2 text-sm text-gray-200 placeholder-gray-600 outline-none transition-colors focus:border-blue-500/40 disabled:opacity-50"
               />

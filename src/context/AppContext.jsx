@@ -3,15 +3,24 @@ import { createContext, useContext, useState, useCallback, useMemo } from 'react
 const AppContext = createContext(null);
 
 const STORAGE_KEYS = {
+  sidebar: 'owlgorithm:sidebar-collapsed',
+  checklist: 'owlgorithm:onboarding-checklist',
+  platforms: 'owlgorithm:connected-platforms',
+  environment: 'owlgorithm:environment',
+  user: 'owlgorithm:user',
+};
+
+const LEGACY_STORAGE_KEYS = {
   sidebar: 'trendowl:sidebar-collapsed',
   checklist: 'trendowl:onboarding-checklist',
   platforms: 'trendowl:connected-platforms',
   environment: 'trendowl:environment',
+  user: 'trendowl:user',
 };
 
-function loadFromStorage(key, fallback) {
+function loadFromStorage(key, fallback, legacyKey) {
   try {
-    const raw = localStorage.getItem(key);
+    const raw = localStorage.getItem(key) ?? (legacyKey ? localStorage.getItem(legacyKey) : null);
     return raw !== null ? JSON.parse(raw) : fallback;
   } catch {
     return fallback;
@@ -36,36 +45,36 @@ const DEFAULT_CHECKLIST = {
 const INITIAL_NOTIFICATIONS = [
   {
     id: 'notif-1',
-    title: 'New trend detected',
-    message: '#AIArt is surging across TikTok and Instagram with 240% growth in 24h.',
+    title: 'Revenue God deployed new paths',
+    message: 'Three live revenue paths worth $9,400 are deploying under your current guardrails.',
     time: '2 min ago',
     read: false,
   },
   {
     id: 'notif-2',
-    title: 'Post published',
-    message: 'Your scheduled post "5 Tools You Need" was published to Instagram.',
+    title: 'Leakage prevented',
+    message: 'Revenue God intercepted $2,840 in leakage by pausing a weak cold-traffic segment.',
     time: '1 hour ago',
     read: false,
   },
   {
     id: 'notif-3',
-    title: 'Weekly report ready',
-    message: 'Your weekly trend performance report for Mar 24–31 is ready to view.',
+    title: 'Bundle engine online',
+    message: 'A new high-intent bundle path is converting at 41% and scaling into the next budget tier.',
     time: '3 hours ago',
     read: false,
   },
   {
     id: 'notif-4',
-    title: 'A/B test completed',
-    message: 'Variant B outperformed A by 34% on engagement rate. Auto-applied.',
+    title: 'Target beat at P75',
+    message: 'The simulator now projects $47,820 this month if current winners keep clearing confidence thresholds.',
     time: '5 hours ago',
     read: true,
   },
   {
     id: 'notif-5',
-    title: 'Night Watch alert',
-    message: '3 new trends detected overnight: #VibeCode, #MCPServers, #AIAgents.',
+    title: 'Creator surge detected',
+    message: 'Creator promo codes are outperforming baseline and the bandit just shifted 18% more budget into the winner.',
     time: '8 hours ago',
     read: true,
   },
@@ -73,33 +82,57 @@ const INITIAL_NOTIFICATIONS = [
 
 const STATIC_USER = {
   name: 'Amy',
-  email: 'amy@trendowl.com',
+  email: 'amy@owlgorithm.com',
   avatar: 'A',
-  plan: 'Oracle (Pro)',
+  plan: 'Founding',
 };
+
+function normalizeEnvironment(env) {
+  if (env === '/snowy-owl.mp4') return '/tech-hud.3840x2160.mp4';
+  return env;
+}
 
 export function AppProvider({ children }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
-    () => loadFromStorage(STORAGE_KEYS.sidebar, false)
+    () => loadFromStorage(STORAGE_KEYS.sidebar, false, LEGACY_STORAGE_KEYS.sidebar)
   );
 
   const [onboardingChecklist, setOnboardingChecklist] = useState(
-    () => loadFromStorage(STORAGE_KEYS.checklist, DEFAULT_CHECKLIST)
+    () => loadFromStorage(STORAGE_KEYS.checklist, DEFAULT_CHECKLIST, LEGACY_STORAGE_KEYS.checklist)
   );
 
   const [connectedPlatforms, setConnectedPlatforms] = useState(
-    () => loadFromStorage(STORAGE_KEYS.platforms, [])
+    () => loadFromStorage(STORAGE_KEYS.platforms, [], LEGACY_STORAGE_KEYS.platforms)
+  );
+
+  const [user, setUserState] = useState(
+    () => loadFromStorage(STORAGE_KEYS.user, STATIC_USER, LEGACY_STORAGE_KEYS.user)
   );
 
   const [notifications, setNotifications] = useState(INITIAL_NOTIFICATIONS);
 
   const [environment, setEnvironmentState] = useState(
-    () => loadFromStorage(STORAGE_KEYS.environment, '/snowy-owl.mp4')
+    () => normalizeEnvironment(loadFromStorage(STORAGE_KEYS.environment, '/tech-hud.3840x2160.mp4', LEGACY_STORAGE_KEYS.environment))
   );
 
   const setEnvironment = useCallback((env) => {
-    setEnvironmentState(env);
-    saveToStorage(STORAGE_KEYS.environment, env);
+    const next = normalizeEnvironment(env);
+    setEnvironmentState(next);
+    saveToStorage(STORAGE_KEYS.environment, next);
+  }, []);
+
+  const updateUser = useCallback((partial) => {
+    setUserState((prev) => {
+      const nextName = partial.name?.trim() || prev.name;
+      const next = {
+        ...prev,
+        ...partial,
+        name: nextName,
+        avatar: nextName.charAt(0).toUpperCase(),
+      };
+      saveToStorage(STORAGE_KEYS.user, next);
+      return next;
+    });
   }, []);
 
   const toggleSidebar = useCallback(() => {
@@ -150,7 +183,8 @@ export function AppProvider({ children }) {
       connectedPlatforms,
       connectPlatform,
       disconnectPlatform,
-      user: STATIC_USER,
+      user,
+      updateUser,
       notifications,
       markNotificationRead,
       environment,
@@ -164,6 +198,8 @@ export function AppProvider({ children }) {
       connectedPlatforms,
       connectPlatform,
       disconnectPlatform,
+      user,
+      updateUser,
       notifications,
       markNotificationRead,
       environment,
