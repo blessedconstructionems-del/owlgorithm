@@ -1,0 +1,27 @@
+{
+  "google": {
+    "status": "ok",
+    "count": 160,
+    "error": null,
+    "lastRun": "2026-04-01T02:38:17.442Z"
+  },
+  "lastFullRun": "2026-04-01T02:39:35.448Z",
+  "youtube": {
+    "status": "ok",
+    "count": 11,
+    "error": null,
+    "lastRun": "2026-04-01T02:38:47.372Z"
+  },
+  "reddit": {
+    "status": "ok",
+    "count": 33,
+    "error": null,
+    "lastRun": "2026-04-01T02:39:10.682Z"
+  },
+  "twitter/x": {
+    "status": "ok",
+    "count": 29,
+    "error": null,
+    "lastRun": "2026-04-01T02:39:35.448Z"
+  }
+}

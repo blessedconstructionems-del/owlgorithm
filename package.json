@@ -1,5 +1,5 @@
 {
-  "name": "trendowl",
+  "name": "owlgorithm",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -7,7 +7,11 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "server": "node server/index.js",
+    "scrape": "node scraper/index.js",
+    "start": "node server/index.js",
+    "ci": "npm run lint && npm run build"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.11",

@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { trends } from '@/data/trends';
+import { useTrendsData } from '@/data/trends';
 
 const COLORS = {
   Emerging: '#06b6d4',
@@ -34,9 +34,11 @@ function dotSize(growthVelocity) {
   return clamped;
 }
 
-export default function TrendPulseRadar() {
+export default function TrendPulseRadar({ trendItems }) {
+  const { trends: liveTrends } = useTrendsData();
+  const trendSource = trendItems ?? liveTrends;
   const [hoveredTrend, setHoveredTrend] = useState(null);
-  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  const [tooltipPos, setTooltipPos] = useState(null);
   const svgRef = useRef(null);
 
   // Responsive: viewBox is fixed, we scale via CSS
@@ -49,7 +51,7 @@ export default function TrendPulseRadar() {
   const outerR = maxR * 0.95;
 
   const trendDots = useMemo(() => {
-    return trends.map((trend, i) => {
+    return trendSource.map((trend, i) => {
       const angle = hashAngle(trend.name, i);
       const r = momentumToRadius(trend.momentum, innerR, outerR);
       const x = cx + Math.cos(angle) * r;
@@ -58,17 +60,18 @@ export default function TrendPulseRadar() {
       const color = COLORS[trend.saturation] || '#3b82f6';
       return { ...trend, x, y, size, color, angle, r };
     });
-  }, [cx, cy, innerR, outerR]);
+  }, [cx, cy, innerR, outerR, trendSource]);
 
-  function handleDotHover(trend, e) {
+  function handleDotHover(trend) {
     const svgEl = svgRef.current;
     if (!svgEl) return;
     const rect = svgEl.getBoundingClientRect();
     const scaleX = rect.width / viewSize;
     const scaleY = rect.height / viewSize;
     setTooltipPos({
-      x: trend.x * scaleX + rect.left,
-      y: trend.y * scaleY + rect.top,
+      left: trend.x * scaleX,
+      top: trend.y * scaleY,
+      goLeft: trend.x > viewSize / 2,
     });
     setHoveredTrend(trend);
   }
@@ -82,7 +85,7 @@ export default function TrendPulseRadar() {
             Trend Pulse Radar
           </h2>
           <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
-            Real-time momentum across {trends.length} tracked trends
+            Real-time momentum across {trendSource.length} tracked trends
           </p>
         </div>
         <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
@@ -215,8 +218,11 @@ export default function TrendPulseRadar() {
                 damping: 15,
               }}
               style={{ transformOrigin: `${dot.x}px ${dot.y}px` }}
-              onMouseEnter={(e) => handleDotHover(dot, e)}
-              onMouseLeave={() => setHoveredTrend(null)}
+              onMouseEnter={() => handleDotHover(dot)}
+              onMouseLeave={() => {
+                setHoveredTrend(null);
+                setTooltipPos(null);
+              }}
               className="cursor-pointer"
             >
               {/* Pulse ring */}
@@ -270,8 +276,8 @@ export default function TrendPulseRadar() {
 
         {/* Tooltip (rendered outside SVG for rich HTML) */}
         <AnimatePresence>
-          {hoveredTrend && (
-            <Tooltip trend={hoveredTrend} pos={tooltipPos} svgRef={svgRef} viewSize={viewSize} />
+          {hoveredTrend && tooltipPos && (
+            <Tooltip trend={hoveredTrend} pos={tooltipPos} />
           )}
         </AnimatePresence>
       </div>
@@ -364,21 +370,7 @@ function describeArc(cx, cy, r, startAngle, endAngle) {
 }
 
 /* ─── Tooltip ────────────────────────────────── */
-function Tooltip({ trend, pos, svgRef, viewSize }) {
-  const svgEl = svgRef.current;
-  if (!svgEl) return null;
-
-  const rect = svgEl.getBoundingClientRect();
-  const scaleX = rect.width / viewSize;
-  const scaleY = rect.height / viewSize;
-
-  // Position relative to the radar container (parent of SVG)
-  const left = trend.x * scaleX;
-  const top = trend.y * scaleY;
-
-  // Determine if tooltip should go left or right of dot
-  const goLeft = trend.x > viewSize / 2;
-
+function Tooltip({ trend, pos }) {
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.85, y: 6 }}
@@ -387,9 +379,9 @@ function Tooltip({ trend, pos, svgRef, viewSize }) {
       transition={{ duration: 0.2, ease: 'easeOut' }}
       className="absolute z-50 pointer-events-none"
       style={{
-        left: goLeft ? left - 8 : left + 8,
-        top: top - 8,
-        transform: goLeft ? 'translate(-100%, -100%)' : 'translate(0, -100%)',
+        left: pos.goLeft ? pos.left - 8 : pos.left + 8,
+        top: pos.top - 8,
+        transform: pos.goLeft ? 'translate(-100%, -100%)' : 'translate(0, -100%)',
       }}
     >
       <div

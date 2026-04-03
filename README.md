@@ -1,16 +1,82 @@
-# React + Vite
+# Owlgorithm
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Owlgorithm is a trend-intelligence dashboard with a React frontend, a Node API, and a scraper pipeline that writes normalized trend data to local cache files.
 
-Currently, two official plugins are available:
+## Current product scope
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+The launchable MVP in this repo is:
 
-## React Compiler
+- Dashboard
+- Trend Radar
+- Workspace settings
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Other routes are intentionally gated until they have real backend support.
 
-## Expanding the ESLint configuration
+## Requirements
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+- Node 20
+- Bright Data credentials for live scraping
+
+## Environment
+
+Copy [`.env.example`](/Users/theoracle/trendowl/.env.example) to `.env` or `.env.local` and set the values you need.
+
+Important variables:
+
+- `OWLGORITHM_PORT`: API/server port, default `3847`
+- `OWLGORITHM_HOST`: server bind host, default `127.0.0.1`
+- `ENABLE_SCRAPER`: `true` to enable scheduled scrapes
+- `SCRAPE_INTERVAL_MS`: scrape interval in milliseconds
+- `BRIGHT_DATA_API_KEY` or `BRIGHTDATA_SERP_API_KEY`: scraper credential
+- `BRIGHTDATA_SERP_ZONE`: Bright Data zone, default `serp_api2`
+- `OWLGORITHM_ADMIN_TOKEN`: optional token for manual scrape triggers
+- `VITE_API_BASE_URL`: optional frontend override; leave blank for same-origin requests
+
+## Local development
+
+Install dependencies:
+
+```bash
+npm ci
+```
+
+Run the API/scraper server:
+
+```bash
+npm run server
+```
+
+Run the frontend in another terminal:
+
+```bash
+npm run dev
+```
+
+Vite proxies `/api/*` to `http://127.0.0.1:3847` during local development.
+
+## Production
+
+Build and run the app as a single Node service:
+
+```bash
+npm run build
+npm start
+```
+
+The Node server serves both:
+
+- `dist/` static assets
+- `/api/*` endpoints
+
+## Quality checks
+
+```bash
+npm run lint
+npm run build
+```
+
+CI now runs both checks on push and pull request.
+
+## Deployment
+
+This repo is configured for a single-service deploy target. A baseline Render config is included in [`render.yaml`](/Users/theoracle/trendowl/render.yaml).

@@ -27,7 +27,7 @@ import StatusBadge from '@/components/shared/StatusBadge';
 import PlatformIcon from '@/components/shared/PlatformIcon';
 import CircularProgress from '@/components/shared/CircularProgress';
 
-import { trends as allTrends } from '@/data/trends';
+import { useTrendsData } from '@/data/trends';
 import TrendDNA from '@/components/trends/TrendDNA';
 
 // ---------------------------------------------------------------------------
@@ -63,6 +63,14 @@ function saturationProgressColor(sat) {
   if (s === 'peak') return '#F59E0B';
   if (s === 'declining') return '#EF4444';
   return '#6B7280';
+}
+
+function stableActivity(seed) {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = seed.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return 42 + (Math.abs(hash) % 54);
 }
 
 // ---------------------------------------------------------------------------
@@ -179,13 +187,13 @@ function PlatformBarTooltip({ active, payload }) {
 // ---------------------------------------------------------------------------
 // Trend Detail Modal
 // ---------------------------------------------------------------------------
-function TrendDetailModal({ trend, onClose }) {
+function TrendDetailModal({ trend, allTrends, onClose }) {
   if (!trend) return null;
 
   // Platform breakdown for bar chart
   const platformBarData = trend.platforms.map((p) => ({
     name: p,
-    activity: Math.round(40 + Math.random() * 60),
+    activity: stableActivity(`${trend.id}:${p}`),
   }));
 
   // Related trends lookup
@@ -376,6 +384,7 @@ const cardVariants = {
 // Main Page
 // ---------------------------------------------------------------------------
 export default function TrendRadar() {
+  const { trends: allTrends, status, error, lastUpdated, serverAvailable } = useTrendsData();
   // ---- Filter state ----
   const [selectedPlatforms, setSelectedPlatforms] = useState(['All']);
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -437,7 +446,7 @@ export default function TrendRadar() {
     });
 
     return result;
-  }, [selectedPlatforms, selectedCategory, selectedSaturation, sortBy]);
+  }, [allTrends, selectedPlatforms, selectedCategory, selectedSaturation, sortBy]);
 
   return (
     <PageWrapper>
@@ -455,6 +464,23 @@ export default function TrendRadar() {
           <p className="text-gray-400 text-sm">
             Track emerging trends before they peak
           </p>
+        </motion.div>
+
+        <motion.div variants={stagger.item}>
+          <GlassCard hover={false} accent="blue" className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-white">
+                {serverAvailable ? 'Live trend feed connected' : 'Showing cached trend data'}
+              </p>
+              <p className="text-xs text-gray-500">
+                {lastUpdated ? `Last update: ${new Date(lastUpdated).toLocaleString()}` : 'No successful trend sync yet.'}
+                {error ? ` Latest error: ${error}.` : ''}
+              </p>
+            </div>
+            <StatusBadge
+              status={status === 'ready' ? 'active' : status === 'refreshing' || status === 'loading' ? 'emerging' : 'draft'}
+            />
+          </GlassCard>
         </motion.div>
 
         {/* ============================================================
@@ -704,6 +730,7 @@ export default function TrendRadar() {
         {selectedTrend && (
           <TrendDetailModal
             trend={selectedTrend}
+            allTrends={allTrends}
             onClose={() => setSelectedTrend(null)}
           />
         )}

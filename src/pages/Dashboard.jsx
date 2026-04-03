@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import {
@@ -6,7 +6,7 @@ import {
 } from 'recharts';
 import {
   ArrowUpRight, CalendarDays, TrendingUp, Radar, Sparkles, BarChart3,
-  CheckCircle2, Circle, Clock, Zap, Eye, ChevronRight,
+  CheckCircle2, Circle, Clock, Zap, Eye, ChevronRight, RefreshCw,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 
@@ -20,7 +20,7 @@ import CircularProgress from '@/components/shared/CircularProgress';
 import AnimatedNumber from '@/components/shared/AnimatedNumber';
 import SignalMark from '@/components/shared/SignalMark';
 
-import { trends } from '@/data/trends';
+import { refreshTrends, useTrendsData } from '@/data/trends';
 import { posts } from '@/data/posts';
 import { dailyData } from '@/data/analytics';
 import TrendPulseRadar from '@/components/dashboard/TrendPulseRadar';
@@ -92,6 +92,8 @@ const QUICK_ACTIONS = [
 
 export default function Dashboard() {
   const { user, onboardingChecklist, updateChecklist } = useApp();
+  const { trends: liveTrends, status, error, lastUpdated, serverAvailable } = useTrendsData();
+  const [refreshing, setRefreshing] = useState(false);
   const revenuePreview = useMemo(() => buildRevenueSnapshot(DEFAULT_GOD_MODE_CONFIG), []);
 
   const checklistItems = useMemo(() => [
@@ -113,7 +115,7 @@ export default function Dashboard() {
     [onboardingChecklist, updateChecklist],
   );
 
-  const trendingNow = useMemo(() => trends.slice(0, 8), []);
+  const trendingNow = useMemo(() => liveTrends.slice(0, 8), [liveTrends]);
 
   const upcomingPosts = useMemo(() => {
     const now = new Date().toISOString();
@@ -124,6 +126,15 @@ export default function Dashboard() {
   }, []);
 
   const last7 = useMemo(() => dailyData.slice(-7), []);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await refreshTrends();
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
 
   return (
     <PageWrapper>
@@ -196,6 +207,34 @@ export default function Dashboard() {
                 <p className="mt-2 text-2xl font-bold text-white">{formatCompactCurrency(revenuePreview.preventedLeakage)}</p>
                 <p className="mt-1 text-xs text-gray-400">Monthly revenue preserved before it bleeds out</p>
               </div>
+            </div>
+          </GlassCard>
+        </motion.div>
+
+        <motion.div variants={stagger.item}>
+          <GlassCard hover={false} accent="blue" className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-white">
+                {serverAvailable ? 'Bright Data trend feed connected' : 'Using cached trend feed'}
+              </p>
+              <p className="text-xs text-gray-500">
+                {lastUpdated ? `Last sync: ${new Date(lastUpdated).toLocaleString()}` : 'No successful trend sync yet.'}
+                {error ? ` Latest error: ${error}.` : ''}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <StatusBadge
+                status={status === 'ready' ? 'active' : status === 'refreshing' || status === 'loading' ? 'emerging' : 'draft'}
+              />
+              <button
+                type="button"
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="inline-flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-xs font-semibold text-gray-200 transition-colors hover:bg-white/[0.08] disabled:cursor-wait disabled:opacity-60"
+              >
+                <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
+                Refresh feed
+              </button>
             </div>
           </GlassCard>
         </motion.div>
@@ -306,7 +345,12 @@ export default function Dashboard() {
             </Link>
           </div>
           <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-none -mx-2 px-2">
-            {trendingNow.map((trend, i) => (
+            {trendingNow.length === 0 ? (
+              <GlassCard className="min-w-[260px] shrink-0 !p-5">
+                <p className="text-sm font-semibold text-white">Trend feed warming up</p>
+                <p className="mt-2 text-xs text-gray-500">Run the server and refresh once Bright Data has a successful scrape.</p>
+              </GlassCard>
+            ) : trendingNow.map((trend, i) => (
               <motion.div
                 key={trend.id}
                 initial={{ opacity: 0, y: 16 }}

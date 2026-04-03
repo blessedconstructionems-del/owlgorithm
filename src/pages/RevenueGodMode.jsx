@@ -14,7 +14,6 @@ import {
 import GlassCard from '@/components/shared/GlassCard';
 import PageWrapper from '@/components/shared/PageWrapper';
 import { cn } from '@/lib/utils';
-import { useApp } from '@/context/AppContext';
 import {
   AUTONOMY_OPTIONS,
   DEFAULT_GOD_MODE_CONFIG,
@@ -80,7 +79,6 @@ function StatusPill({ active, paused }) {
 }
 
 export default function RevenueGodMode() {
-  const { user } = useApp();
   const [state, setState] = useState(() => {
     const saved = loadRevenueState();
     return saved || {

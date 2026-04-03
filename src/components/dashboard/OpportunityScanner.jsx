@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import GlassCard from '../shared/GlassCard';
 import PlatformIcon from '../shared/PlatformIcon';
-import { trends } from '@/data/trends';
+import { useTrendsData } from '@/data/trends';
 
 /* ── Opportunity scoring engine ─────────────────────────── */
 
@@ -154,15 +154,18 @@ const item = {
   show: { opacity: 1, y: 0, scale: 1, transition: { type: 'spring', stiffness: 300, damping: 24 } },
 };
 
-export default function OpportunityScanner() {
+export default function OpportunityScanner({ trendItems }) {
+  const { trends: liveTrends } = useTrendsData();
+  const sourceTrends = trendItems ?? liveTrends;
+
   const topOpportunities = useMemo(() => {
-    const scored = trends.map((t) => ({
+    const scored = sourceTrends.map((t) => ({
       ...t,
       _score: computeOpportunityScore(t),
     }));
     scored.sort((a, b) => b._score - a._score);
     return scored.slice(0, 5);
-  }, []);
+  }, [sourceTrends]);
 
   return (
     <GlassCard accent="emerald" hover={false} className="overflow-visible">
@@ -274,7 +277,7 @@ export default function OpportunityScanner() {
       {/* Footer stat */}
       <div className="mt-4 pt-3 border-t border-white/[0.05] flex items-center justify-between">
         <span className="text-[11px] text-slate-500">
-          Scanning {trends.length} trends
+          Scanning {sourceTrends.length} trends
         </span>
         <span className="text-[11px] text-emerald-500/80 font-medium">
           {topOpportunities.filter((t) => t._score >= 70).length} high-value opportunities
