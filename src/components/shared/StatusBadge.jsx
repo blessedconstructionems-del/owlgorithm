@@ -3,28 +3,29 @@ import { cn } from '../../lib/utils';
 
 const STATUS_CONFIG = {
   // Green
-  emerging:  { bg: 'bg-emerald-500/15', text: 'text-emerald-400', dot: 'bg-emerald-400', pulse: true },
-  running:   { bg: 'bg-emerald-500/15', text: 'text-emerald-400', dot: 'bg-emerald-400', pulse: false },
-  active:    { bg: 'bg-emerald-500/15', text: 'text-emerald-400', dot: 'bg-emerald-400', pulse: false },
+  emerging: { bg: 'bg-emerald-500/15', text: 'text-emerald-400', dot: 'bg-emerald-400', pulse: true },
+  running: { bg: 'bg-emerald-500/15', text: 'text-emerald-400', dot: 'bg-emerald-400', pulse: false },
+  active: { bg: 'bg-emerald-500/15', text: 'text-emerald-400', dot: 'bg-emerald-400', pulse: false },
   scheduled: { bg: 'bg-emerald-500/15', text: 'text-emerald-400', dot: 'bg-emerald-400', pulse: false },
-  verified:  { bg: 'bg-emerald-500/15', text: 'text-emerald-400', dot: 'bg-emerald-400', pulse: false },
+  verified: { bg: 'bg-emerald-500/15', text: 'text-emerald-400', dot: 'bg-emerald-400', pulse: false },
 
   // Blue
-  rising:    { bg: 'bg-blue-500/15', text: 'text-blue-400', dot: 'bg-blue-400', pulse: false },
+  rising: { bg: 'bg-blue-500/15', text: 'text-blue-400', dot: 'bg-blue-400', pulse: false },
   published: { bg: 'bg-blue-500/15', text: 'text-blue-400', dot: 'bg-blue-400', pulse: false },
 
   // Amber
-  peak:      { bg: 'bg-amber-500/15', text: 'text-amber-400', dot: 'bg-amber-400', pulse: false },
+  peak: { bg: 'bg-amber-500/15', text: 'text-amber-400', dot: 'bg-amber-400', pulse: false },
   completed: { bg: 'bg-amber-500/15', text: 'text-amber-400', dot: 'bg-amber-400', pulse: false },
+  review: { bg: 'bg-amber-500/15', text: 'text-amber-400', dot: 'bg-amber-400', pulse: false },
 
   // Red
-  declining:  { bg: 'bg-red-500/15', text: 'text-red-400', dot: 'bg-red-400', pulse: false },
-  failed:     { bg: 'bg-red-500/15', text: 'text-red-400', dot: 'bg-red-400', pulse: false },
-  false:      { bg: 'bg-red-500/15', text: 'text-red-400', dot: 'bg-red-400', pulse: false },
+  declining: { bg: 'bg-red-500/15', text: 'text-red-400', dot: 'bg-red-400', pulse: false },
+  failed: { bg: 'bg-red-500/15', text: 'text-red-400', dot: 'bg-red-400', pulse: false },
+  false: { bg: 'bg-red-500/15', text: 'text-red-400', dot: 'bg-red-400', pulse: false },
   misleading: { bg: 'bg-red-500/15', text: 'text-red-400', dot: 'bg-red-400', pulse: false },
 
   // Gray
-  draft:      { bg: 'bg-gray-500/15', text: 'text-gray-400', dot: 'bg-gray-400', pulse: false },
+  draft: { bg: 'bg-gray-500/15', text: 'text-gray-400', dot: 'bg-gray-400', pulse: false },
   unverified: { bg: 'bg-gray-500/15', text: 'text-gray-400', dot: 'bg-gray-400', pulse: false },
 };
 

@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus,
@@ -11,7 +11,6 @@ import {
   Brain,
   BarChart3,
   Clock,
-  ArrowRight,
   Check,
   Type,
   Hash,
@@ -19,11 +18,13 @@ import {
   Timer,
   Layout,
   Zap,
-  TrendingUp,
   DollarSign,
   ChevronDown,
   ChevronUp,
   Sparkles,
+  FlaskConical,
+  AlertTriangle,
+  Target,
 } from 'lucide-react';
 import {
   BarChart,
@@ -34,7 +35,6 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
-  Cell,
 } from 'recharts';
 import { cn } from '@/lib/utils';
 import GlassCard from '@/components/shared/GlassCard';
@@ -43,8 +43,15 @@ import StatusBadge from '@/components/shared/StatusBadge';
 import PlatformIcon from '@/components/shared/PlatformIcon';
 import AnimatedNumber from '@/components/shared/AnimatedNumber';
 import { abTests } from '@/data/abTests';
+import {
+  buildAbTestModels,
+  buildAbTestSummary,
+  createAbTestRecord,
+  getMetricLabel,
+  loadAbTests,
+  persistAbTests,
+} from '@/lib/abTesting';
 
-// ─── Wizard Modal ──────────────────────────────────────────────────
 const TEST_TYPE_OPTIONS = [
   { key: 'Caption', icon: Type, label: 'Caption', desc: 'Test different copy styles' },
   { key: 'Hook', icon: Zap, label: 'Hook', desc: 'Compare opening hooks' },
@@ -54,8 +61,22 @@ const TEST_TYPE_OPTIONS = [
   { key: 'Format', icon: Layout, label: 'Format', desc: 'Content format testing' },
 ];
 
+const PLATFORM_OPTIONS = ['Instagram', 'TikTok', 'LinkedIn', 'YouTube', 'Twitter'];
 const DURATION_OPTIONS = [3, 7, 14];
-const METRIC_OPTIONS = ['Engagement Rate', 'Click Rate', 'Reach', 'Impressions'];
+const METRIC_OPTIONS = [
+  { value: 'engagement', label: 'Engagement Rate' },
+  { value: 'clickRate', label: 'Click Rate' },
+  { value: 'impressions', label: 'Impressions' },
+];
+const TABS = ['All Tests', 'Live', 'Review', 'Completed', 'Drafts'];
+const CONFETTI_COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4'];
+
+const RECOMMENDATION_TONE_CLASSES = {
+  amber: 'border-amber-500/20 bg-amber-500/5 text-amber-100',
+  blue: 'border-blue-500/20 bg-blue-500/5 text-blue-100',
+  emerald: 'border-emerald-500/20 bg-emerald-500/5 text-emerald-100',
+  purple: 'border-purple-500/20 bg-purple-500/5 text-purple-100',
+};
 
 function ConfettiParticle({ delay, x, color }) {
   return (
@@ -81,58 +102,134 @@ function ConfettiParticle({ delay, x, color }) {
   );
 }
 
-const CONFETTI_COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4'];
+function SummaryCard({ icon: Icon, label, value, helper, accent = 'blue', prefix = '', suffix = '' }) {
+  return (
+    <GlassCard hover={false} accent={accent}>
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-xs font-medium text-gray-500">{label}</span>
+        <Icon size={16} className="text-white/70" />
+      </div>
+      <div className="text-2xl font-bold text-white">
+        <AnimatedNumber value={value} prefix={prefix} suffix={suffix} />
+      </div>
+      <p className="mt-2 text-xs leading-relaxed text-gray-400">{helper}</p>
+    </GlassCard>
+  );
+}
 
-function WizardModal({ onClose }) {
+function PriorityQueue({ items }) {
+  if (items.length === 0) {
+    return null;
+  }
+
+  return (
+    <GlassCard hover={false} accent="purple" className="h-full">
+      <div className="mb-4 flex items-center gap-2">
+        <Target size={16} className="text-purple-300" />
+        <div>
+          <h2 className="text-sm font-semibold text-white">Priority Queue</h2>
+          <p className="text-xs text-gray-500">The next moves with the biggest upside</p>
+        </div>
+      </div>
+      <div className="space-y-3">
+        {items.map((test) => (
+          <div key={test.id} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+            <div className="mb-2 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-white">{test.name}</p>
+                <p className="mt-0.5 text-xs text-gray-500">
+                  {test.platform} · {test.primaryMetricLabel}
+                </p>
+              </div>
+              <span
+                className={cn(
+                  'rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide',
+                  test.recommendation.tone === 'amber' && 'bg-amber-500/15 text-amber-300',
+                  test.recommendation.tone === 'blue' && 'bg-blue-500/15 text-blue-300',
+                  test.recommendation.tone === 'emerald' && 'bg-emerald-500/15 text-emerald-300',
+                  test.recommendation.tone === 'purple' && 'bg-purple-500/15 text-purple-300'
+                )}
+              >
+                {test.recommendation.label}
+              </span>
+            </div>
+            <p className="text-sm leading-relaxed text-gray-300">{test.recommendation.body}</p>
+            <div className="mt-3 flex items-center justify-between text-xs">
+              <span className="text-gray-500">{test.healthLabel}</span>
+              <span className="font-semibold text-white">{test.recommendation.action}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </GlassCard>
+  );
+}
+
+function WizardModal({ onClose, onLaunch }) {
   const [step, setStep] = useState(1);
   const [testType, setTestType] = useState(null);
+  const [platform, setPlatform] = useState('Instagram');
+  const [testName, setTestName] = useState('');
+  const [hypothesis, setHypothesis] = useState('');
   const [varA, setVarA] = useState('');
   const [varB, setVarB] = useState('');
   const [split, setSplit] = useState(50);
   const [duration, setDuration] = useState(7);
-  const [metric, setMetric] = useState('Engagement Rate');
+  const [metric, setMetric] = useState('engagement');
   const [launching, setLaunching] = useState(false);
   const [launched, setLaunched] = useState(false);
 
   const canNext =
-    (step === 1 && testType) ||
-    (step === 2 && varA.trim() && varB.trim()) ||
+    (step === 1 && testType && platform) ||
+    (step === 2 && testName.trim() && hypothesis.trim() && varA.trim() && varB.trim()) ||
     step === 3;
 
   const handleLaunch = () => {
+    if (launching) return;
+
     setLaunching(true);
     setTimeout(() => {
+      onLaunch(
+        createAbTestRecord({
+          name: testName,
+          platform,
+          testType,
+          hypothesis,
+          variantA: varA,
+          variantB: varB,
+          split,
+          duration,
+          metric,
+        })
+      );
       setLaunching(false);
       setLaunched(true);
-      setTimeout(() => onClose(), 2000);
-    }, 1200);
+      setTimeout(() => onClose(), 1800);
+    }, 900);
   };
 
   return (
     <motion.div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+      className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
     >
-      {/* Backdrop */}
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
       <motion.div
-        className="relative w-full max-h-[95vh] overflow-y-auto sm:max-w-2xl rounded-t-2xl sm:rounded-2xl border border-white/10 bg-[#0f1629]/95 p-4 sm:p-6 shadow-2xl backdrop-blur-xl"
+        className="relative w-full max-h-[95vh] overflow-y-auto rounded-t-2xl border border-white/10 bg-[#0f1629]/95 p-4 shadow-2xl backdrop-blur-xl sm:max-w-2xl sm:rounded-2xl sm:p-6"
         initial={{ scale: 0.9, y: 20 }}
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.9, y: 20 }}
       >
-        {/* Close */}
         <button
           onClick={onClose}
-          className="absolute right-4 top-4 rounded-lg p-1.5 text-gray-400 hover:bg-white/10 hover:text-white transition-colors"
+          className="absolute right-4 top-4 rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
         >
           <X size={18} />
         </button>
 
-        {/* Step indicator */}
         <div className="mb-6 flex items-center gap-2">
           {[1, 2, 3, 4].map((s) => (
             <div key={s} className="flex items-center gap-2">
@@ -161,7 +258,6 @@ function WizardModal({ onClose }) {
         </div>
 
         <AnimatePresence mode="wait">
-          {/* Step 1 — Select Test Type */}
           {step === 1 && (
             <motion.div
               key="step1"
@@ -169,8 +265,35 @@ function WizardModal({ onClose }) {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
             >
-              <h3 className="mb-1 text-lg font-bold text-white">What do you want to test?</h3>
-              <p className="mb-4 text-sm text-gray-400">Select one element to A/B test</p>
+              <h3 className="mb-1 text-lg font-bold text-white">Scope the experiment</h3>
+              <p className="mb-5 text-sm text-gray-400">
+                Pick the platform and the one variable you want to isolate.
+              </p>
+
+              <div className="mb-5">
+                <label className="mb-2 block text-sm font-semibold text-gray-300">Platform</label>
+                <div className="flex flex-wrap gap-2">
+                  {PLATFORM_OPTIONS.map((option) => {
+                    const selected = option === platform;
+                    return (
+                      <button
+                        key={option}
+                        onClick={() => setPlatform(option)}
+                        className={cn(
+                          'flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition-all',
+                          selected
+                            ? 'border-blue-500/50 bg-blue-500/10 text-white'
+                            : 'border-white/10 bg-white/5 text-gray-400 hover:border-white/20 hover:text-white'
+                        )}
+                      >
+                        <PlatformIcon platform={option} size={18} />
+                        {option}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 {TEST_TYPE_OPTIONS.map((opt) => {
                   const Icon = opt.icon;
@@ -196,7 +319,6 @@ function WizardModal({ onClose }) {
             </motion.div>
           )}
 
-          {/* Step 2 — Variant Content */}
           {step === 2 && (
             <motion.div
               key="step2"
@@ -204,12 +326,33 @@ function WizardModal({ onClose }) {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
             >
-              <h3 className="mb-1 text-lg font-bold text-white">Enter your variants</h3>
+              <h3 className="mb-1 text-lg font-bold text-white">Frame the test</h3>
               <p className="mb-4 text-sm text-gray-400">
-                Write content for each variant of your {testType?.toLowerCase()} test
+                Name the experiment, write the hypothesis, and define both variants.
               </p>
+
+              <div className="mb-4 space-y-4">
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-300">Test Name</label>
+                  <input
+                    value={testName}
+                    onChange={(e) => setTestName(e.target.value)}
+                    placeholder="Example: Hook Comparison - AI Newsletter Promo"
+                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder-gray-500 outline-none transition-all focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-300">Hypothesis</label>
+                  <textarea
+                    value={hypothesis}
+                    onChange={(e) => setHypothesis(e.target.value)}
+                    placeholder="What do you expect to happen, and why?"
+                    className="h-24 w-full resize-none rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white placeholder-gray-500 outline-none transition-all focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30"
+                  />
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                {/* Variant A */}
                 <div>
                   <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-blue-400">
                     <span className="flex h-6 w-6 items-center justify-center rounded-md bg-blue-500/20 text-xs font-bold">
@@ -221,10 +364,9 @@ function WizardModal({ onClose }) {
                     value={varA}
                     onChange={(e) => setVarA(e.target.value)}
                     placeholder="Enter Variant A content..."
-                    className="h-32 w-full resize-none rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white placeholder-gray-500 outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30 transition-all"
+                    className="h-36 w-full resize-none rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white placeholder-gray-500 outline-none transition-all focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30"
                   />
                 </div>
-                {/* Variant B */}
                 <div>
                   <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-purple-400">
                     <span className="flex h-6 w-6 items-center justify-center rounded-md bg-purple-500/20 text-xs font-bold">
@@ -236,14 +378,13 @@ function WizardModal({ onClose }) {
                     value={varB}
                     onChange={(e) => setVarB(e.target.value)}
                     placeholder="Enter Variant B content..."
-                    className="h-32 w-full resize-none rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white placeholder-gray-500 outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 transition-all"
+                    className="h-36 w-full resize-none rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white placeholder-gray-500 outline-none transition-all focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30"
                   />
                 </div>
               </div>
             </motion.div>
           )}
 
-          {/* Step 3 — Configuration */}
           {step === 3 && (
             <motion.div
               key="step3"
@@ -251,14 +392,13 @@ function WizardModal({ onClose }) {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
             >
-              <h3 className="mb-1 text-lg font-bold text-white">Configure your test</h3>
-              <p className="mb-5 text-sm text-gray-400">Set traffic split, duration, and success metric</p>
+              <h3 className="mb-1 text-lg font-bold text-white">Configure the test</h3>
+              <p className="mb-5 text-sm text-gray-400">
+                Set the audience split, run length, and the metric that decides the winner.
+              </p>
 
-              {/* Traffic Split */}
               <div className="mb-5">
-                <label className="mb-2 block text-sm font-semibold text-gray-300">
-                  Traffic Split
-                </label>
+                <label className="mb-2 block text-sm font-semibold text-gray-300">Traffic Split</label>
                 <div className="flex items-center gap-3">
                   <span className="w-12 text-right text-sm font-mono text-blue-400">{split}% A</span>
                   <input
@@ -271,12 +411,8 @@ function WizardModal({ onClose }) {
                   />
                   <span className="w-12 text-sm font-mono text-purple-400">{100 - split}% B</span>
                 </div>
-                {/* Visual bar */}
                 <div className="mt-2 flex h-3 overflow-hidden rounded-full">
-                  <div
-                    className="bg-blue-500/60 transition-all"
-                    style={{ width: `${split}%` }}
-                  />
+                  <div className="bg-blue-500/60 transition-all" style={{ width: `${split}%` }} />
                   <div
                     className="bg-purple-500/60 transition-all"
                     style={{ width: `${100 - split}%` }}
@@ -284,40 +420,36 @@ function WizardModal({ onClose }) {
                 </div>
               </div>
 
-              {/* Duration */}
               <div className="mb-5">
                 <label className="mb-2 block text-sm font-semibold text-gray-300">Duration</label>
                 <div className="flex gap-3">
-                  {DURATION_OPTIONS.map((d) => (
+                  {DURATION_OPTIONS.map((option) => (
                     <button
-                      key={d}
-                      onClick={() => setDuration(d)}
+                      key={option}
+                      onClick={() => setDuration(option)}
                       className={cn(
                         'flex-1 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-all',
-                        duration === d
+                        duration === option
                           ? 'border-blue-500/50 bg-blue-500/10 text-white'
                           : 'border-white/10 bg-white/5 text-gray-400 hover:border-white/20 hover:text-white'
                       )}
                     >
-                      {d} days
+                      {option} days
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Success Metric */}
               <div>
-                <label className="mb-2 block text-sm font-semibold text-gray-300">
-                  Success Metric
-                </label>
+                <label className="mb-2 block text-sm font-semibold text-gray-300">Success Metric</label>
                 <select
                   value={metric}
                   onChange={(e) => setMetric(e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white outline-none focus:border-blue-500/50 transition-all"
+                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white outline-none transition-all focus:border-blue-500/50"
                 >
-                  {METRIC_OPTIONS.map((m) => (
-                    <option key={m} value={m} className="bg-[#0f1629] text-white">
-                      {m}
+                  {METRIC_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value} className="bg-[#0f1629] text-white">
+                      {option.label}
                     </option>
                   ))}
                 </select>
@@ -325,7 +457,6 @@ function WizardModal({ onClose }) {
             </motion.div>
           )}
 
-          {/* Step 4 — Review & Launch */}
           {step === 4 && (
             <motion.div
               key="step4"
@@ -334,53 +465,59 @@ function WizardModal({ onClose }) {
               exit={{ opacity: 0, x: -20 }}
               className="relative"
             >
-              <h3 className="mb-1 text-lg font-bold text-white">Review & Launch</h3>
-              <p className="mb-4 text-sm text-gray-400">Everything look good? Let&apos;s run it.</p>
+              <h3 className="mb-1 text-lg font-bold text-white">Review and launch</h3>
+              <p className="mb-4 text-sm text-gray-400">One last check before the experiment goes live.</p>
 
-              <div className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-3">
-                <div className="flex items-center justify-between">
+              <div className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm text-gray-400">Test Name</span>
+                  <span className="text-right text-sm font-semibold text-white">{testName}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm text-gray-400">Platform</span>
+                  <span className="text-sm font-semibold text-white">{platform}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
                   <span className="text-sm text-gray-400">Test Type</span>
                   <span className="text-sm font-semibold text-white">{testType}</span>
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-3">
                   <span className="text-sm text-gray-400">Traffic Split</span>
                   <span className="text-sm font-semibold text-white">
                     {split}% A / {100 - split}% B
                   </span>
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-3">
                   <span className="text-sm text-gray-400">Duration</span>
                   <span className="text-sm font-semibold text-white">{duration} days</span>
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-3">
                   <span className="text-sm text-gray-400">Success Metric</span>
-                  <span className="text-sm font-semibold text-white">{metric}</span>
+                  <span className="text-sm font-semibold text-white">{getMetricLabel(metric)}</span>
                 </div>
                 <div className="border-t border-white/10 pt-3">
-                  <p className="text-xs text-gray-500 mb-1">Variant A</p>
+                  <p className="mb-1 text-xs text-gray-500">Hypothesis</p>
+                  <p className="text-sm text-gray-300">{hypothesis}</p>
+                </div>
+                <div className="border-t border-white/10 pt-3">
+                  <p className="mb-1 text-xs text-gray-500">Variant A</p>
                   <p className="text-sm text-gray-300 line-clamp-2">{varA}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 mb-1">Variant B</p>
+                  <p className="mb-1 text-xs text-gray-500">Variant B</p>
                   <p className="text-sm text-gray-300 line-clamp-2">{varB}</p>
                 </div>
               </div>
 
-              {/* Launch button */}
               <div className="relative mt-5 flex justify-center">
                 {launched ? (
-                  <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    className="flex flex-col items-center gap-2"
-                  >
+                  <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="flex flex-col items-center gap-2">
                     <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/20">
                       <Check size={28} className="text-emerald-400" />
                     </div>
                     <span className="text-sm font-semibold text-emerald-400">
-                      Test Launched Successfully!
+                      Test launched into the lab.
                     </span>
-                    {/* Confetti */}
                     <div className="pointer-events-none absolute inset-0">
                       {Array.from({ length: 24 }).map((_, i) => (
                         <ConfettiParticle
@@ -414,21 +551,20 @@ function WizardModal({ onClose }) {
           )}
         </AnimatePresence>
 
-        {/* Navigation buttons */}
         {!launched && (
           <div className="mt-6 flex items-center justify-between">
             <button
-              onClick={() => setStep((s) => Math.max(1, s - 1))}
+              onClick={() => setStep((current) => Math.max(1, current - 1))}
               disabled={step === 1}
-              className="flex items-center gap-1 text-sm text-gray-400 hover:text-white transition-colors disabled:opacity-30 disabled:hover:text-gray-400"
+              className="flex items-center gap-1 text-sm text-gray-400 transition-colors hover:text-white disabled:opacity-30 disabled:hover:text-gray-400"
             >
               <ChevronLeft size={16} /> Back
             </button>
             {step < 4 && (
               <button
-                onClick={() => setStep((s) => s + 1)}
+                onClick={() => setStep((current) => current + 1)}
                 disabled={!canNext}
-                className="flex items-center gap-1 rounded-lg bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/15 transition-colors disabled:opacity-30"
+                className="flex items-center gap-1 rounded-lg bg-white/10 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/15 disabled:opacity-30"
               >
                 Next <ChevronRight size={16} />
               </button>
@@ -440,7 +576,6 @@ function WizardModal({ onClose }) {
   );
 }
 
-// ─── Expanded Detail Section ───────────────────────────────────────
 function TestDetail({ test }) {
   const chartData = [
     { metric: 'Impressions', A: test.variantA.impressions, B: test.variantB.impressions },
@@ -448,9 +583,9 @@ function TestDetail({ test }) {
     { metric: 'Click Rate %', A: test.variantA.clickRate, B: test.variantB.clickRate },
   ];
 
-  const revenueImpact = Math.round(
-    Math.abs(test.variantA.clickRate - test.variantB.clickRate) * 120 + 80
-  );
+  const hasPerformanceData = test.variantA.impressions > 0 || test.variantB.impressions > 0;
+  const recommendationTone =
+    RECOMMENDATION_TONE_CLASSES[test.recommendation.tone] || RECOMMENDATION_TONE_CLASSES.blue;
 
   return (
     <motion.div
@@ -461,40 +596,72 @@ function TestDetail({ test }) {
       className="overflow-hidden"
     >
       <div className="mt-4 space-y-4 border-t border-white/10 pt-4">
-        {/* Chart */}
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} barCategoryGap="25%">
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-              <XAxis
-                dataKey="metric"
-                tick={{ fill: '#9ca3af', fontSize: 12 }}
-                axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
-              />
-              <YAxis
-                tick={{ fill: '#9ca3af', fontSize: 12 }}
-                axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: '#1a1f3a',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: 12,
-                  color: '#fff',
-                }}
-              />
-              <Legend wrapperStyle={{ color: '#9ca3af', fontSize: 12 }} />
-              <Bar dataKey="A" name="Variant A" fill="#3b82f6" radius={[6, 6, 0, 0]} />
-              <Bar dataKey="B" name="Variant B" fill="#8b5cf6" radius={[6, 6, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Primary Metric</p>
+            <p className="mt-2 text-lg font-bold text-white">{test.primaryMetricLabel}</p>
+            <p className="mt-1 text-sm text-gray-400">
+              {test.leadingVariant
+                ? `Variant ${test.leadingVariant} leads by ${test.metricLift}%`
+                : 'Both variants are still neck and neck.'}
+            </p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Test Window</p>
+            <p className="mt-2 text-lg font-bold text-white">
+              {test.displayStartDate} to {test.displayEndDate}
+            </p>
+            <p className="mt-1 text-sm text-gray-400">
+              {test.derivedStatus === 'Running' && test.daysRemaining !== null
+                ? `${test.daysRemaining} day${test.daysRemaining !== 1 ? 's' : ''} remaining`
+                : `${test.timelineProgress}% of the planned window consumed`}
+            </p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Experiment Health</p>
+            <p className="mt-2 text-lg font-bold text-white">{test.healthLabel}</p>
+            <p className="mt-1 text-sm text-gray-400">{test.recommendation.action}</p>
+          </div>
         </div>
 
-        {/* Significance Gauge */}
+        {hasPerformanceData ? (
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData} barCategoryGap="25%">
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                <XAxis
+                  dataKey="metric"
+                  tick={{ fill: '#9ca3af', fontSize: 12 }}
+                  axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                />
+                <YAxis
+                  tick={{ fill: '#9ca3af', fontSize: 12 }}
+                  axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#1a1f3a',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: 12,
+                    color: '#fff',
+                  }}
+                />
+                <Legend wrapperStyle={{ color: '#9ca3af', fontSize: 12 }} />
+                <Bar dataKey="A" name="Variant A" fill="#3b82f6" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="B" name="Variant B" fill="#8b5cf6" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.03] p-5 text-sm text-gray-400">
+            This experiment has no live observations yet. Once traffic starts flowing, the lab will compare impressions, engagement, and click rate here.
+          </div>
+        )}
+
         {test.significance > 0 && (
           <div className="flex items-center gap-4">
             <div className="flex-1">
-              <p className="mb-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-gray-400">
                 Statistical Significance
               </p>
               <div className="h-3 w-full overflow-hidden rounded-full bg-white/10">
@@ -528,7 +695,21 @@ function TestDetail({ test }) {
           </div>
         )}
 
-        {/* Smart Insight */}
+        {test.hypothesis && (
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Hypothesis</p>
+            <p className="mt-2 text-sm leading-relaxed text-gray-300">{test.hypothesis}</p>
+          </div>
+        )}
+
+        <div className={cn('rounded-xl border p-4', recommendationTone)}>
+          <div className="mb-2 flex items-center gap-2">
+            <Target size={16} className="text-current" />
+            <span className="text-sm font-semibold">{test.recommendation.title}</span>
+          </div>
+          <p className="text-sm leading-relaxed text-current/80">{test.recommendation.body}</p>
+        </div>
+
         <div className="rounded-xl border border-purple-500/20 bg-purple-500/5 p-4">
           <div className="mb-2 flex items-center gap-2">
             <Brain size={16} className="text-purple-400" />
@@ -537,18 +718,25 @@ function TestDetail({ test }) {
           <p className="text-sm leading-relaxed text-gray-300">{test.aiInsight}</p>
         </div>
 
-        {/* Actions */}
-        <div className="flex flex-wrap items-center gap-3">
-          {test.winner && (
-            <button className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-purple-500 px-4 py-2 text-sm font-semibold text-white transition-all hover:shadow-lg hover:shadow-blue-500/20">
-              <Sparkles size={14} /> Apply Winner to Future Posts
-            </button>
-          )}
-          <div className="flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-2">
-            <DollarSign size={14} className="text-emerald-400" />
-            <span className="text-sm font-semibold text-emerald-400">
-              +${revenueImpact} estimated monthly impact
-            </span>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Recommended Next Move</p>
+            <p className="mt-2 text-sm font-semibold text-white">{test.recommendation.action}</p>
+            <p className="mt-1 text-sm text-gray-400">
+              {test.winningVariant
+                ? `Bake Variant ${test.winningVariant} into the next creative cycle.`
+                : 'Keep the audience split clean until the signal is decisive.'}
+            </p>
+          </div>
+          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+            <div className="flex items-center gap-2 text-emerald-300">
+              <DollarSign size={14} />
+              <span className="text-xs font-semibold uppercase tracking-wider">Estimated Monthly Upside</span>
+            </div>
+            <p className="mt-2 text-xl font-bold text-emerald-300">+${test.estimatedImpact}</p>
+            <p className="mt-1 text-sm text-emerald-100/80">
+              Based on current lift, confidence, and the urgency of this experiment.
+            </p>
           </div>
         </div>
       </div>
@@ -556,20 +744,14 @@ function TestDetail({ test }) {
   );
 }
 
-// ─── Test Card ────────────────────────────────────────────────────
 function TestCard({ test, index }) {
-  const [expanded, setExpanded] = useState(false);
-  const isCompleted = test.status === 'Completed';
-  const isRunning = test.status === 'Running';
-  const isDraft = test.status === 'Draft';
-
-  const daysLeft = useMemo(() => {
-    if (!test.endDate) return null;
-    const end = new Date(test.endDate);
-    const now = new Date();
-    const diff = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
-    return Math.max(0, diff);
-  }, [test.endDate]);
+  const [expanded, setExpanded] = useState(test.derivedStatus === 'Review');
+  const isCompleted = test.derivedStatus === 'Completed';
+  const isRunning = test.derivedStatus === 'Running';
+  const isDraft = test.derivedStatus === 'Draft';
+  const isScheduled = test.derivedStatus === 'Scheduled';
+  const isReview = test.derivedStatus === 'Review';
+  const leaderVariant = isCompleted ? test.winningVariant : test.leadingVariant;
 
   return (
     <motion.div
@@ -577,49 +759,42 @@ function TestCard({ test, index }) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.08, duration: 0.4 }}
     >
-      <GlassCard
-        hover={false}
-        accent={isCompleted && test.winner ? 'emerald' : 'purple'}
-        className={cn(
-          'relative overflow-hidden',
-          isCompleted && 'cursor-pointer'
-        )}
-        onClick={isCompleted ? () => setExpanded((e) => !e) : undefined}
-      >
-        {/* Header row */}
+      <GlassCard hover={false} accent={isCompleted ? 'emerald' : isReview ? 'amber' : 'purple'}>
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-center gap-3">
             <PlatformIcon platform={test.platform} size={28} />
             <div>
-              <h3 className="text-base font-bold text-white">{test.name}</h3>
-              <span className="text-xs text-gray-500">{test.testType} test</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-base font-bold text-white">{test.name}</h3>
+                <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                  {test.healthLabel}
+                </span>
+              </div>
+              <span className="text-xs text-gray-500">
+                {test.testType} test · {test.primaryMetricLabel}
+              </span>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <StatusBadge status={test.status.toLowerCase()} />
-            {isRunning && (
-              <motion.div
-                className="h-2 w-2 rounded-full bg-emerald-400"
-                animate={{ opacity: [1, 0.3, 1] }}
-                transition={{ repeat: Infinity, duration: 1.5 }}
-              />
-            )}
-            {isCompleted && (
-              <button className="text-gray-500 hover:text-white transition-colors">
-                {expanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-              </button>
-            )}
+            <StatusBadge status={test.derivedStatus.toLowerCase()} />
+            <button
+              onClick={() => setExpanded((value) => !value)}
+              className="rounded-lg p-1 text-gray-500 transition-colors hover:bg-white/10 hover:text-white"
+              aria-label={expanded ? 'Collapse details' : 'Expand details'}
+            >
+              {expanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+            </button>
           </div>
         </div>
 
-        {/* Variant comparison */}
         <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {/* Variant A */}
           <div
             className={cn(
               'rounded-xl border p-3 transition-all',
-              isCompleted && test.winner === 'A'
-                ? 'border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
+              leaderVariant === 'A'
+                ? isCompleted
+                  ? 'border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
+                  : 'border-blue-500/30 bg-blue-500/[0.06]'
                 : 'border-white/10 bg-white/[0.02]'
             )}
           >
@@ -630,9 +805,12 @@ function TestCard({ test, index }) {
                 </span>
                 Variant A
               </span>
-              {isCompleted && test.winner === 'A' && (
-                <Crown size={14} className="text-amber-400" />
-              )}
+              {leaderVariant === 'A' &&
+                (isCompleted ? (
+                  <Crown size={14} className="text-amber-400" />
+                ) : (
+                  <Sparkles size={14} className="text-blue-300" />
+                ))}
             </div>
             <p className="mb-3 text-sm leading-relaxed text-gray-300 line-clamp-3">
               {test.variantA.content}
@@ -666,12 +844,13 @@ function TestCard({ test, index }) {
             )}
           </div>
 
-          {/* Variant B */}
           <div
             className={cn(
               'rounded-xl border p-3 transition-all',
-              isCompleted && test.winner === 'B'
-                ? 'border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
+              leaderVariant === 'B'
+                ? isCompleted
+                  ? 'border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
+                  : 'border-purple-500/30 bg-purple-500/[0.06]'
                 : 'border-white/10 bg-white/[0.02]'
             )}
           >
@@ -682,9 +861,12 @@ function TestCard({ test, index }) {
                 </span>
                 Variant B
               </span>
-              {isCompleted && test.winner === 'B' && (
-                <Crown size={14} className="text-amber-400" />
-              )}
+              {leaderVariant === 'B' &&
+                (isCompleted ? (
+                  <Crown size={14} className="text-amber-400" />
+                ) : (
+                  <Sparkles size={14} className="text-purple-300" />
+                ))}
             </div>
             <p className="mb-3 text-sm leading-relaxed text-gray-300 line-clamp-3">
               {test.variantB.content}
@@ -719,100 +901,126 @@ function TestCard({ test, index }) {
           </div>
         </div>
 
-        {/* Traffic Split Bar */}
-        <div className="mb-3">
+        <div className="mb-4">
           <div className="mb-1 flex items-center justify-between text-[10px] text-gray-500">
             <span>A: {test.trafficSplit}%</span>
             <span>B: {100 - test.trafficSplit}%</span>
           </div>
           <div className="flex h-2 overflow-hidden rounded-full">
-            <div
-              className="bg-blue-500/50 transition-all"
-              style={{ width: `${test.trafficSplit}%` }}
-            />
+            <div className="bg-blue-500/50 transition-all" style={{ width: `${test.trafficSplit}%` }} />
             <div
               className="bg-purple-500/50 transition-all"
               style={{ width: `${100 - test.trafficSplit}%` }}
             />
           </div>
-        </div>
-
-        {/* Footer */}
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          {isRunning && daysLeft !== null && (
-            <div className="flex items-center gap-1.5 text-xs text-gray-400">
-              <Clock size={12} />
-              <span>{daysLeft} day{daysLeft !== 1 ? 's' : ''} remaining</span>
-              <motion.div
-                className="ml-1 h-1.5 w-1.5 rounded-full bg-emerald-400"
-                animate={{ scale: [1, 1.4, 1] }}
-                transition={{ repeat: Infinity, duration: 2 }}
-              />
+          {test.endDate && (
+            <div className="mt-3">
+              <div className="mb-1 flex items-center justify-between text-[10px] text-gray-500">
+                <span>{test.displayStartDate}</span>
+                <span>{test.timelineProgress}% through window</span>
+                <span>{test.displayEndDate}</span>
+              </div>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+                <div
+                  className={cn(
+                    'h-full rounded-full',
+                    isReview ? 'bg-amber-400' : isCompleted ? 'bg-emerald-400' : 'bg-blue-400'
+                  )}
+                  style={{ width: `${test.timelineProgress}%` }}
+                />
+              </div>
             </div>
           )}
-          {isCompleted && test.winner && (
-            <div className="flex items-center gap-2">
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {isRunning && test.daysRemaining !== null && (
+              <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                <Clock size={12} />
+                <span>{test.daysRemaining} day{test.daysRemaining !== 1 ? 's' : ''} remaining</span>
+                <motion.div
+                  className="ml-1 h-1.5 w-1.5 rounded-full bg-emerald-400"
+                  animate={{ scale: [1, 1.4, 1] }}
+                  transition={{ repeat: Infinity, duration: 2 }}
+                />
+              </div>
+            )}
+            {isReview && (
+              <span className="rounded-full bg-amber-500/15 px-3 py-1 text-xs font-bold text-amber-400">
+                Ended {test.displayEndDate}. Decision overdue.
+              </span>
+            )}
+            {isCompleted && test.winningVariant && (
               <div className="flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-bold text-emerald-400">
                 <Trophy size={12} />
-                Winner: Variant {test.winner}
+                Winner: Variant {test.winningVariant}
               </div>
-              <span
-                className={cn(
-                  'rounded-full px-2 py-0.5 text-[10px] font-bold',
-                  test.significance >= 95
-                    ? 'bg-emerald-500/15 text-emerald-400'
-                    : 'bg-amber-500/15 text-amber-400'
-                )}
-              >
-                {test.significance}% confidence
-              </span>
-            </div>
-          )}
-          {isDraft && (
-            <span className="text-xs text-gray-500 italic">Not yet launched</span>
-          )}
-          {test.endDate && isCompleted && (
-            <span className="text-xs text-gray-500">
-              Completed {new Date(test.endDate).toLocaleDateString()}
-            </span>
-          )}
+            )}
+            {isDraft && <span className="text-xs italic text-gray-500">No traffic yet. Launch when ready.</span>}
+            {isScheduled && <span className="text-xs text-gray-500">Starts {test.displayStartDate}</span>}
+          </div>
+          <span className="text-xs text-gray-400">
+            {test.leadingVariant
+              ? `${test.primaryMetricLabel}: ${test.leadingVariant} +${test.metricLift}%`
+              : `${test.primaryMetricLabel}: too close to call`}
+          </span>
         </div>
 
-        {/* Expanded detail */}
-        <AnimatePresence>
-          {expanded && isCompleted && <TestDetail test={test} />}
-        </AnimatePresence>
+        <AnimatePresence>{expanded && <TestDetail test={test} />}</AnimatePresence>
       </GlassCard>
     </motion.div>
   );
 }
 
-// ─── Main Page ─────────────────────────────────────────────────────
-const TABS = ['All Tests', 'Running', 'Completed', 'Drafts'];
-
 export default function ABTesting() {
   const [activeTab, setActiveTab] = useState('All Tests');
   const [showWizard, setShowWizard] = useState(false);
+  const [tests, setTests] = useState(() => loadAbTests(abTests));
+
+  useEffect(() => {
+    persistAbTests(tests);
+  }, [tests]);
+
+  const testModels = useMemo(() => buildAbTestModels(tests), [tests]);
+  const summary = useMemo(() => buildAbTestSummary(testModels), [testModels]);
+  const priorityQueue = useMemo(() => testModels.slice(0, 3), [testModels]);
 
   const filteredTests = useMemo(() => {
-    if (activeTab === 'All Tests') return abTests;
-    if (activeTab === 'Running') return abTests.filter((t) => t.status === 'Running');
-    if (activeTab === 'Completed') return abTests.filter((t) => t.status === 'Completed');
-    if (activeTab === 'Drafts') return abTests.filter((t) => t.status === 'Draft');
-    return abTests;
-  }, [activeTab]);
+    if (activeTab === 'All Tests') return testModels;
+    if (activeTab === 'Live') return testModels.filter((test) => test.derivedStatus === 'Running');
+    if (activeTab === 'Review') return testModels.filter((test) => test.derivedStatus === 'Review');
+    if (activeTab === 'Completed') {
+      return testModels.filter((test) => test.derivedStatus === 'Completed');
+    }
+    if (activeTab === 'Drafts') return testModels.filter((test) => test.derivedStatus === 'Draft');
+    return testModels;
+  }, [activeTab, testModels]);
+
+  const tabCounts = {
+    'All Tests': testModels.length,
+    Live: summary.live,
+    Review: summary.review,
+    Completed: summary.completed,
+    Drafts: summary.drafts,
+  };
+
+  const handleLaunch = (test) => {
+    setTests((current) => [test, ...current]);
+  };
 
   return (
     <PageWrapper>
-      {/* Header */}
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold">
+          <h1 className="text-2xl font-extrabold sm:text-3xl">
             <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
               A/B Testing Lab
             </span>
           </h1>
-          <p className="mt-1 text-sm text-gray-400">Test, learn, optimize</p>
+          <p className="mt-1 max-w-2xl text-sm text-gray-400">
+            Run cleaner experiments, spot stale tests faster, and turn winners into repeatable playbooks.
+          </p>
         </div>
         <motion.button
           onClick={() => setShowWizard(true)}
@@ -824,14 +1032,49 @@ export default function ABTesting() {
         </motion.button>
       </div>
 
-      {/* Tabs */}
-      <div className="mb-6 flex gap-1 rounded-xl bg-white/5 p-1 overflow-x-auto scrollbar-none">
+      <div className="mb-8 grid grid-cols-1 gap-4 xl:grid-cols-[1.8fr_1fr]">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <SummaryCard
+            icon={FlaskConical}
+            label="Live Tests"
+            value={summary.live}
+            helper="Experiments currently collecting signal."
+            accent="blue"
+          />
+          <SummaryCard
+            icon={AlertTriangle}
+            label="Decision Queue"
+            value={summary.review}
+            helper="Tests whose end date passed without a clean decision."
+            accent="amber"
+          />
+          <SummaryCard
+            icon={Sparkles}
+            label="Avg Winner Lift"
+            value={summary.averageWinnerLift}
+            helper="Average primary-metric gain from completed winners."
+            accent="emerald"
+            suffix="%"
+          />
+          <SummaryCard
+            icon={DollarSign}
+            label="Projected Impact"
+            value={summary.projectedMonthlyImpact}
+            helper="Modeled upside if the strongest signals are shipped."
+            accent="purple"
+            prefix="$"
+          />
+        </div>
+        <PriorityQueue items={priorityQueue} />
+      </div>
+
+      <div className="mb-6 flex gap-1 overflow-x-auto rounded-xl bg-white/5 p-1 scrollbar-none">
         {TABS.map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={cn(
-              'relative flex-1 rounded-lg px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold transition-all whitespace-nowrap',
+              'relative flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold whitespace-nowrap transition-all sm:px-4 sm:text-sm',
               activeTab === tab ? 'text-white' : 'text-gray-400 hover:text-gray-200'
             )}
           >
@@ -843,11 +1086,13 @@ export default function ABTesting() {
               />
             )}
             <span className="relative">{tab}</span>
+            <span className="relative rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold text-gray-300">
+              {tabCounts[tab]}
+            </span>
           </button>
         ))}
       </div>
 
-      {/* Test List */}
       <AnimatePresence mode="wait">
         <motion.div
           key={activeTab}
@@ -864,16 +1109,15 @@ export default function ABTesting() {
               <p className="text-sm text-gray-500">Create a new test to get started.</p>
             </div>
           ) : (
-            filteredTests.map((test, i) => (
-              <TestCard key={test.id} test={test} index={i} />
-            ))
+            filteredTests.map((test, index) => <TestCard key={test.id} test={test} index={index} />)
           )}
         </motion.div>
       </AnimatePresence>
 
-      {/* Wizard Modal */}
       <AnimatePresence>
-        {showWizard && <WizardModal onClose={() => setShowWizard(false)} />}
+        {showWizard && (
+          <WizardModal onClose={() => setShowWizard(false)} onLaunch={handleLaunch} />
+        )}
       </AnimatePresence>
     </PageWrapper>
   );
