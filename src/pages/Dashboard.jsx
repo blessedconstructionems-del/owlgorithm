@@ -85,7 +85,9 @@ const STAT_CARDS = [
 const QUICK_ACTIONS = [
   { icon: Zap, title: 'Enter Revenue God Mode', desc: 'Activate autonomous offers, paid pushes, and recovery loops', link: '/revenue-god-mode' },
   { icon: Radar, title: 'Find trending topics', desc: 'Discover emerging opportunities tailored to your niche', link: '/trends' },
-  { icon: BarChart3, title: 'Review your channels', desc: 'Tune the channel mix feeding your money paths', link: '/platforms' },
+  { icon: Sparkles, title: 'Generate post ideas', desc: 'Smart content suggestions based on live trends', link: '/scheduler' },
+  { icon: BarChart3, title: 'Analyze best content', desc: 'See what drives engagement and why', link: '/analytics' },
+  { icon: CalendarDays, title: 'Review your channels', desc: 'Tune the channel mix feeding your money paths', link: '/platforms' },
 ];
 
 export default function Dashboard() {

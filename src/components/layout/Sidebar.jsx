@@ -4,7 +4,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
   Radar,
+  Calendar,
+  BarChart3,
+  FlaskConical,
+  Trophy,
+  ShieldCheck,
+  Target,
+  Moon,
   Link2,
+  Heart,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -18,11 +26,26 @@ const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/revenue-god-mode', label: 'Revenue God Mode', icon: Zap },
   { path: '/trends', label: 'Trend Radar', icon: Radar },
+  { path: '/scheduler', label: 'Scheduler', icon: Calendar },
+  { path: '/analytics', label: 'Analytics', icon: BarChart3 },
+  { path: '/ab-testing', label: 'A/B Testing', icon: FlaskConical },
+  { path: '/leaderboard', label: 'Leaderboard', icon: Trophy },
+  { path: '/truth-radar', label: 'Truth Radar', icon: ShieldCheck },
+  { path: '/strategy', label: 'Strategy', icon: Target },
+  { path: '/night-watch', label: 'Night Watch', icon: Moon },
   { path: '/platforms', label: 'Platforms', icon: Link2 },
+  { path: '/wellness', label: 'Wellness', icon: Heart },
   { path: '/settings', label: 'Settings', icon: Settings },
 ];
 
-const MOBILE_NAV = NAV_ITEMS;
+const MOBILE_NAV = NAV_ITEMS.filter((item) => (
+  item.path === '/'
+  || item.path === '/revenue-god-mode'
+  || item.path === '/trends'
+  || item.path === '/scheduler'
+  || item.path === '/analytics'
+  || item.path === '/settings'
+));
 
 function NavItem({ item, collapsed, isActive }) {
   const Icon = item.icon;
