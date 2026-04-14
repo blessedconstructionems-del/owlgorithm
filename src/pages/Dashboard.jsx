@@ -132,30 +132,29 @@ export default function Dashboard() {
 
         {/* ── Welcome Banner ── */}
         <motion.div variants={stagger.item} className="grid gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(360px,0.9fr)]">
-          <div className="relative overflow-hidden rounded-2xl border border-white/[0.06]">
+          <div className="relative overflow-hidden rounded-2xl border border-white/[0.1] bg-white/[0.04] shadow-[0_24px_64px_-24px_rgba(0,0,0,0.72)] backdrop-blur-xl">
             {/* Multi-layer gradient background */}
-            <div className="absolute inset-0 bg-gradient-to-br from-blue-600/90 via-purple-600/80 to-indigo-700/90" />
-            <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2240%22%20height%3D%2240%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cdefs%3E%3Cpattern%20id%3D%22g%22%20width%3D%2240%22%20height%3D%2240%22%20patternUnits%3D%22userSpaceOnUse%22%3E%3Ccircle%20cx%3D%2220%22%20cy%3D%2220%22%20r%3D%221%22%20fill%3D%22rgba(255%2C255%2C255%2C0.08)%22%2F%3E%3C%2Fpattern%3E%3C%2Fdefs%3E%3Crect%20fill%3D%22url(%23g)%22%20width%3D%22100%25%22%20height%3D%22100%25%22%2F%3E%3C%2Fsvg%3E')] opacity-50" />
-            <div className="absolute -top-20 -right-20 w-64 h-64 rounded-full bg-white/[0.06] blur-3xl" />
-            <div className="absolute -bottom-24 -left-12 w-72 h-72 rounded-full bg-purple-400/[0.08] blur-3xl" />
-            <div className="absolute top-1/2 right-1/4 w-32 h-32 rounded-full bg-cyan-400/[0.06] blur-2xl" />
+            <div className="absolute inset-0 bg-[linear-gradient(140deg,rgba(64,96,255,0.28),rgba(155,66,255,0.22),rgba(14,24,38,0.12))]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.12),transparent_34%),radial-gradient(circle_at_bottom_left,rgba(168,85,247,0.18),transparent_32%),radial-gradient(circle_at_80%_30%,rgba(34,211,238,0.12),transparent_28%)]" />
+            <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(4,8,14,0.22),rgba(4,8,14,0.05)_48%,rgba(4,8,14,0.1))]" />
+            <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2240%22%20height%3D%2240%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cdefs%3E%3Cpattern%20id%3D%22g%22%20width%3D%2240%22%20height%3D%2240%22%20patternUnits%3D%22userSpaceOnUse%22%3E%3Ccircle%20cx%3D%2220%22%20cy%3D%2220%22%20r%3D%221%22%20fill%3D%22rgba(255%2C255%2C255%2C0.08)%22%2F%3E%3C%2Fpattern%3E%3C%2Fdefs%3E%3Crect%20fill%3D%22url(%23g)%22%20width%3D%22100%25%22%20height%3D%22100%25%22%2F%3E%3C%2Fsvg%3E')] opacity-35" />
 
             <div className="relative flex h-full items-center justify-between px-4 py-8 sm:px-8 md:min-h-[360px] md:py-12">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-blue-200/70 text-sm font-medium">
+              <div className="space-y-3 drop-shadow-[0_4px_22px_rgba(0,0,0,0.72)]">
+                <div className="flex items-center gap-2 text-white/80 text-sm font-medium">
                   <Sparkles size={14} />
                   <span>Monetize Everything™</span>
                 </div>
                 <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-white tracking-tight">
                   {getGreeting()}, {user.name}
                 </h1>
-                <p className="text-blue-100/60 text-base max-w-md">
-                  Revenue God Mode is ready to route your next money path. You have <span className="text-white font-semibold">3 emerging opportunities</span> and a projected {formatCompactCurrency(revenuePreview.projectedLiftMid)} 30-day upside waiting.
+                <p className="max-w-md text-base leading-relaxed text-white/78">
+                  Revenue God Mode is ready to route your next money path. You have <span className="font-semibold text-white">3 emerging opportunities</span> and a projected <span className="font-semibold text-white">{formatCompactCurrency(revenuePreview.projectedLiftMid)}</span> 30-day upside waiting.
                 </p>
               </div>
               <div className="hidden lg:flex items-center gap-4">
                 <div className="animate-float">
-                  <SignalMark className="h-24 w-24 rounded-2xl border-white/[0.12] bg-[linear-gradient(160deg,rgba(8,15,28,0.94),rgba(14,86,122,0.88))] shadow-2xl" />
+                  <SignalMark className="h-24 w-24 rounded-2xl border-white/[0.16] bg-[linear-gradient(160deg,rgba(8,15,28,0.42),rgba(14,86,122,0.34))] shadow-[0_22px_48px_-18px_rgba(0,0,0,0.8)] backdrop-blur-xl" />
                 </div>
               </div>
             </div>

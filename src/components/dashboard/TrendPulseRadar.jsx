@@ -77,14 +77,14 @@ export default function TrendPulseRadar({ trendItems }) {
   }
 
   return (
-    <div className="glass-card rounded-2xl p-4 sm:p-6 relative w-full">
+    <div className="glass-card relative w-full rounded-2xl border-white/[0.1] !bg-[linear-gradient(145deg,rgba(7,12,18,0.46),rgba(10,14,20,0.32))] p-4 shadow-[0_24px_64px_-24px_rgba(0,0,0,0.72)] sm:p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h2 className="text-lg sm:text-xl font-semibold text-white tracking-tight">
+          <h2 className="text-lg sm:text-xl font-semibold tracking-tight text-white drop-shadow-[0_3px_18px_rgba(0,0,0,0.72)]">
             Trend Pulse Radar
           </h2>
-          <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
+          <p className="mt-0.5 text-xs text-slate-300 sm:text-sm">
             Real-time momentum across {trendSource.length} tracked trends
           </p>
         </div>
