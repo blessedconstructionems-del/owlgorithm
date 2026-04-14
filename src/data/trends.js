@@ -1,37 +1,42 @@
-// Owlgorithm — Live Trend Data (fetched from data server)
-// Loads cached data synchronously on import, then refreshes from the API via a small external store.
+import { useEffect, useSyncExternalStore } from 'react';
+import { ApiError, apiRequest } from '@/lib/api';
 
-import { useSyncExternalStore } from 'react';
-
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+const CACHE_KEY = 'owlgorithm:trends';
+const CACHE_META_KEY = 'owlgorithm:trends-meta';
 
-// Synchronously load cached trends from localStorage on import
-function loadInitialTrends() {
-  try {
-    const cached = localStorage.getItem('owlgorithm_trends');
-    if (cached) {
-      const parsed = JSON.parse(cached);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        console.log(`[Owlgorithm] Loaded ${parsed.length} cached trends`);
-        return parsed;
-      }
-    }
-  } catch {
-    return [];
+function loadCachedState() {
+  if (typeof window === 'undefined') {
+    return { trends: [], lastUpdated: null };
   }
-  return [];
+
+  try {
+    const rawTrends = localStorage.getItem(CACHE_KEY);
+    const rawMeta = localStorage.getItem(CACHE_META_KEY);
+    const trends = rawTrends ? JSON.parse(rawTrends) : [];
+    const meta = rawMeta ? JSON.parse(rawMeta) : {};
+
+    return {
+      trends: Array.isArray(trends) ? trends : [],
+      lastUpdated: meta.lastUpdated || null,
+    };
+  } catch {
+    return { trends: [], lastUpdated: null };
+  }
 }
 
-export const trends = loadInitialTrends();
+const cached = loadCachedState();
 const listeners = new Set();
-let pollingStarted = false;
 
+export let trends = cached.trends;
+
+let pollTimer = null;
+let consumerCount = 0;
 let state = {
-  trends,
-  status: trends.length > 0 ? 'stale' : 'idle',
+  trends: cached.trends,
+  status: cached.trends.length ? 'stale' : 'idle',
   error: null,
-  lastUpdated: null,
+  lastUpdated: cached.lastUpdated,
   serverAvailable: false,
 };
 
@@ -40,12 +45,44 @@ function emit() {
 }
 
 function setState(patch) {
-  state = { ...state, ...patch, trends };
+  state = { ...state, ...patch };
+  trends = state.trends;
   emit();
 }
 
-function getApiUrl(endpoint) {
-  return `${API_BASE}${endpoint}`;
+function persistState(trends, lastUpdated) {
+  if (typeof window === 'undefined') return;
+
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(trends));
+    localStorage.setItem(CACHE_META_KEY, JSON.stringify({ lastUpdated }));
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+function clearPersistedState() {
+  if (typeof window === 'undefined') return;
+
+  try {
+    localStorage.removeItem(CACHE_KEY);
+    localStorage.removeItem(CACHE_META_KEY);
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+function startPolling() {
+  if (pollTimer || typeof window === 'undefined') return;
+
+  refreshTrends();
+  pollTimer = window.setInterval(refreshTrends, REFRESH_INTERVAL_MS);
+}
+
+function stopPolling() {
+  if (!pollTimer || typeof window === 'undefined') return;
+  window.clearInterval(pollTimer);
+  pollTimer = null;
 }
 
 export function subscribeToTrends(listener) {
@@ -57,90 +94,98 @@ export function getTrendsSnapshot() {
   return state;
 }
 
-export function useTrendsData() {
+export function useTrendsData(enabled = true) {
+  useEffect(() => {
+    if (!enabled) return undefined;
+
+    consumerCount += 1;
+    startPolling();
+
+    return () => {
+      consumerCount -= 1;
+      if (consumerCount <= 0) {
+        consumerCount = 0;
+        stopPolling();
+      }
+    };
+  }, [enabled]);
+
   return useSyncExternalStore(subscribeToTrends, getTrendsSnapshot, getTrendsSnapshot);
 }
 
 export async function refreshTrends() {
   setState({
-    status: trends.length > 0 ? 'refreshing' : 'loading',
+    status: state.trends.length ? 'refreshing' : 'loading',
     error: null,
   });
 
   try {
-    const res = await fetch(getApiUrl('/api/trends'));
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-    const data = await res.json();
+    const data = await apiRequest('/api/trends');
     if (!Array.isArray(data.trends)) {
       throw new Error('Invalid trends payload');
     }
 
-    trends.length = 0;
-    trends.push(...data.trends);
-    console.log(`[Owlgorithm] Refreshed with ${trends.length} live trends`);
-
-    try {
-      localStorage.setItem('owlgorithm_trends', JSON.stringify(data.trends));
-      localStorage.setItem('owlgorithm_trends_ts', Date.now().toString());
-    } catch {
-      // Ignore local cache failures in private browsing or storage-restricted environments.
-    }
+    persistState(data.trends, data.lastUpdated || null);
 
     setState({
+      trends: data.trends,
       status: 'ready',
       error: null,
-      lastUpdated: data.lastUpdated || new Date().toISOString(),
+      lastUpdated: data.lastUpdated || null,
       serverAvailable: true,
     });
 
-    return true;
-  } catch (err) {
-    console.warn('[Owlgorithm] Data server unavailable:', err.message);
-    setState({
-      status: trends.length > 0 ? 'stale' : 'error',
-      error: err.message,
-      serverAvailable: false,
-    });
-  }
+    return data;
+  } catch (error) {
+    const authFailure = error instanceof ApiError && error.status === 401;
 
-  return false;
+    setState({
+      trends: authFailure ? [] : state.trends,
+      status: authFailure ? 'idle' : state.trends.length ? 'stale' : 'error',
+      error: authFailure ? null : error.message,
+      serverAvailable: false,
+      lastUpdated: authFailure ? null : state.lastUpdated,
+    });
+
+    if (authFailure) {
+      stopPolling();
+      clearPersistedState();
+    }
+
+    return null;
+  }
 }
 
-// Trigger manual scrape
-export async function triggerScrape() {
+export async function triggerScrape(headers = {}) {
   try {
-    const res = await fetch(getApiUrl('/api/scrape/run'), { method: 'POST' });
-    const data = await res.json();
+    const data = await apiRequest('/api/scrape/run', {
+      method: 'POST',
+      headers,
+    });
+
     if (data.status === 'complete') {
       await refreshTrends();
     }
+
     return data;
-  } catch (err) {
-    return { status: 'error', error: err.message };
+  } catch (error) {
+    return {
+      status: 'error',
+      error: error.message,
+    };
   }
 }
 
-// Get scraper status
-export async function getScrapeStatus() {
-  try {
-    const res = await fetch(getApiUrl('/api/scrape/status'));
-    return await res.json();
-  } catch {
-    return { error: 'Server unavailable' };
-  }
+export function resetTrendsStore() {
+  stopPolling();
+  clearPersistedState();
+  state = {
+    trends: [],
+    status: 'idle',
+    error: null,
+    lastUpdated: null,
+    serverAvailable: false,
+  };
+  trends = state.trends;
+  emit();
 }
-
-function startPolling() {
-  if (pollingStarted || typeof window === 'undefined') return;
-  pollingStarted = true;
-
-  refreshTrends().catch(() => {});
-  window.setInterval(() => {
-    refreshTrends().catch(() => {});
-  }, REFRESH_INTERVAL_MS);
-}
-
-startPolling();
-
-export default trends;

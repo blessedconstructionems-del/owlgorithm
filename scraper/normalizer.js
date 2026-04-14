@@ -313,18 +313,24 @@ function generateDescription(name, platforms, volume, saturation) {
   const platList = platforms.join(', ');
   const status = saturation.toLowerCase();
   const volStr = volume > 0 ? ` with ${formatNumber(volume)}+ total engagement` : '';
-  return `"${name}" is currently ${status} across ${platList}${volStr}. This trend was detected through real-time cross-platform analysis by Owlgorithm's data engine.`;
+  const sourceLine = platforms.length > 1
+    ? 'It was detected across multiple source feeds in the latest refresh.'
+    : `It was detected in the latest ${platList} source refresh.`;
+  return `"${name}" is currently ${status} across ${platList}${volStr}. ${sourceLine}`;
 }
 
 function generateInsight(name, momentum, velocity, competition, saturation, platforms) {
   const parts = [];
+  const sourceContext = platforms.length > 1
+    ? `It is active on ${platforms.length} sources, which supports a broader signal.`
+    : `It is currently concentrated on ${platforms[0]}, so confirm it persists before committing heavily.`;
 
   if (saturation === 'Emerging' && competition === 'Low') {
     parts.push(`This is an early-stage opportunity. "${name}" has low competition and is just starting to gain traction.`);
-    parts.push('First-mover advantage is significant — creators who jump on this now will benefit from algorithmic boost as the trend grows.');
+    parts.push(sourceContext);
   } else if (saturation === 'Rising') {
     parts.push(`"${name}" is in active growth phase with ${Math.round(velocity)}% velocity.`);
-    parts.push(`Currently on ${platforms.length} platform${platforms.length > 1 ? 's' : ''} — cross-platform presence amplifies reach.`);
+    parts.push(sourceContext);
   } else if (saturation === 'Peak') {
     parts.push(`"${name}" has reached peak saturation. The window for easy engagement is closing.`);
     parts.push('Consider a unique angle or remix to stand out from the crowd.');

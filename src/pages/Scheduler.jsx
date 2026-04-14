@@ -2,8 +2,6 @@ import { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   format,
-  addDays,
-  subDays,
   startOfMonth,
   endOfMonth,
   eachDayOfInterval,
@@ -14,9 +12,6 @@ import {
   subMonths,
   startOfWeek,
   endOfWeek,
-  setHours,
-  setMinutes,
-  parseISO,
 } from 'date-fns';
 import {
   ChevronLeft,
@@ -192,7 +187,7 @@ function CreatePostWizard({ onClose }) {
     setTimeout(() => setAiTimeSelected(false), 2000);
   }, []);
 
-  const handleSchedule = useCallback((isDraft) => {
+  const handleSchedule = useCallback(() => {
     setSuccess(true);
     setTimeout(() => {
       onClose();
@@ -579,38 +574,42 @@ function CreatePostWizard({ onClose }) {
                 { key: 'addHook', icon: MessageSquare, title: 'Add Hook', desc: 'Writes an attention-grabbing first line' },
                 { key: 'emojiOptimization', icon: Smile, title: 'Emoji Optimization', desc: 'Add strategic emojis to boost engagement' },
                 { key: 'trendAlignment', icon: Zap, title: 'Trend Alignment', desc: 'Align your post with current Ripples for discovery' },
-              ].map(({ key, icon: Icon, title, desc }) => (
+              ].map((item) => {
+                const IconComponent = item.icon;
+
+                return (
                 <div
-                  key={key}
+                  key={item.key}
                   className="glass-card rounded-xl p-4 flex items-center justify-between"
                 >
                   <div className="flex items-center gap-3">
                     <div className={cn(
                       'w-10 h-10 rounded-lg flex items-center justify-center',
-                      enchantments[key] ? 'bg-blue-500/20' : 'bg-white/5'
+                      enchantments[item.key] ? 'bg-blue-500/20' : 'bg-white/5'
                     )}>
-                      <Icon size={18} className={enchantments[key] ? 'text-blue-400' : 'text-gray-500'} />
+                      <IconComponent size={18} className={enchantments[item.key] ? 'text-blue-400' : 'text-gray-500'} />
                     </div>
                     <div>
-                      <div className="text-sm font-medium text-white">{title}</div>
-                      <div className="text-xs text-gray-500">{desc}</div>
+                      <div className="text-sm font-medium text-white">{item.title}</div>
+                      <div className="text-xs text-gray-500">{item.desc}</div>
                     </div>
                   </div>
                   <button
-                    onClick={() => setEnchantments((prev) => ({ ...prev, [key]: !prev[key] }))}
+                    onClick={() => setEnchantments((prev) => ({ ...prev, [item.key]: !prev[item.key] }))}
                     className={cn(
                       'w-12 h-6 rounded-full transition-all relative',
-                      enchantments[key] ? 'bg-blue-500' : 'bg-white/10'
+                      enchantments[item.key] ? 'bg-blue-500' : 'bg-white/10'
                     )}
                   >
                     <motion.div
                       className="w-5 h-5 rounded-full bg-white absolute top-0.5"
-                      animate={{ left: enchantments[key] ? 26 : 2 }}
+                      animate={{ left: enchantments[item.key] ? 26 : 2 }}
                       transition={{ type: 'spring', stiffness: 500, damping: 30 }}
                     />
                   </button>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </motion.div>
         )}

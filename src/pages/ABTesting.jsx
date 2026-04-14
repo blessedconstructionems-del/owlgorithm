@@ -1,4 +1,5 @@
-import { useState, useCallback, useMemo } from 'react';
+/* eslint-disable react-hooks/purity */
+import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus,

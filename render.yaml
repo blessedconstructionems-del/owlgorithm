@@ -1,0 +1,40 @@
+services:
+  - type: web
+    runtime: node
+    name: owlgorithm
+    plan: starter
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeployTrigger: checksPass
+    disk:
+      name: owlgorithm-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: NODE_ENV
+        value: production
+      - key: OWLGORITHM_BASE_PATH
+        value: /
+      - key: OWLGORITHM_PUBLIC_URL
+        sync: false
+      - key: OWLGORITHM_DATA_DIR
+        value: /var/data/owlgorithm
+      - key: ENABLE_SCRAPER
+        value: "true"
+      - key: OWLGORITHM_EMAIL_FROM
+        sync: false
+      - key: OWLGORITHM_SMTP_HOST
+        sync: false
+      - key: OWLGORITHM_SMTP_PORT
+        value: "587"
+      - key: OWLGORITHM_SMTP_USER
+        sync: false
+      - key: OWLGORITHM_SMTP_PASSWORD
+        sync: false
+      - key: OWLGORITHM_SMTP_SECURE
+        value: "false"
+      - key: OWLGORITHM_ADMIN_TOKEN
+        generateValue: true

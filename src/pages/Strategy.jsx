@@ -591,7 +591,7 @@ export default function Strategy() {
 
         {/* Expanded week detail */}
         <AnimatePresence mode="wait">
-          {(selectedWeek !== null || true) && activeWeek && (
+          {activeWeek && (
             <WeekDetail key={activeWeek.week} week={activeWeek} />
           )}
         </AnimatePresence>
