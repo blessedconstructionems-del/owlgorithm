@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { apiRequest } from '@/lib/api';
+import { STATIC_DEMO } from '@/lib/runtime';
 import { resetTrendsStore } from '@/data/trends';
 
 const AppContext = createContext(null);
@@ -132,6 +133,15 @@ export function AppProvider({ children }) {
     }
 
     if (guestModeEnabled()) {
+      const guest = buildGuestState();
+      setAuthStatus(guest.authStatus);
+      setUser(guest.user);
+      setPreferences(guest.preferences);
+      return;
+    }
+
+    if (STATIC_DEMO) {
+      setGuestMode(true);
       const guest = buildGuestState();
       setAuthStatus(guest.authStatus);
       setUser(guest.user);

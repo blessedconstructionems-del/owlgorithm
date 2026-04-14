@@ -1,5 +1,6 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import { ApiError, apiRequest } from '@/lib/api';
+import { STATIC_DEMO, staticAssetUrl } from '@/lib/runtime';
 
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 const CACHE_KEY = 'owlgorithm:trends';
@@ -85,6 +86,29 @@ function stopPolling() {
   pollTimer = null;
 }
 
+async function loadStaticDemoSnapshot() {
+  const [trendsResponse, statusResponse] = await Promise.all([
+    fetch(staticAssetUrl('demo/trends.json')),
+    fetch(staticAssetUrl('demo/scrape-status.json')),
+  ]);
+
+  if (!trendsResponse.ok) {
+    throw new Error('Static demo trends are unavailable.');
+  }
+
+  const demoTrends = await trendsResponse.json();
+  const demoStatus = statusResponse.ok ? await statusResponse.json() : {};
+
+  if (!Array.isArray(demoTrends)) {
+    throw new Error('Static demo trends are invalid.');
+  }
+
+  return {
+    trends: demoTrends,
+    lastUpdated: demoStatus.lastFullRun || null,
+  };
+}
+
 export function subscribeToTrends(listener) {
   listeners.add(listener);
   return () => listeners.delete(listener);
@@ -137,12 +161,31 @@ export async function refreshTrends() {
 
     return data;
   } catch (error) {
-    const authFailure = error instanceof ApiError && error.status === 401;
+    let requestError = error;
+
+    if (STATIC_DEMO) {
+      try {
+        const demo = await loadStaticDemoSnapshot();
+        persistState(demo.trends, demo.lastUpdated);
+        setState({
+          trends: demo.trends,
+          status: 'ready',
+          error: null,
+          lastUpdated: demo.lastUpdated,
+          serverAvailable: false,
+        });
+        return demo;
+      } catch (demoError) {
+        requestError = demoError;
+      }
+    }
+
+    const authFailure = requestError instanceof ApiError && requestError.status === 401;
 
     setState({
       trends: authFailure ? [] : state.trends,
       status: authFailure ? 'idle' : state.trends.length ? 'stale' : 'error',
-      error: authFailure ? null : error.message,
+      error: authFailure ? null : requestError.message,
       serverAvailable: false,
       lastUpdated: authFailure ? null : state.lastUpdated,
     });
