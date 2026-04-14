@@ -131,7 +131,7 @@ export default function Dashboard() {
       <motion.div variants={stagger.container} initial="initial" animate="animate" className="space-y-8">
 
         {/* ── Welcome Banner ── */}
-        <motion.div variants={stagger.item}>
+        <motion.div variants={stagger.item} className="grid gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(360px,0.9fr)]">
           <div className="relative overflow-hidden rounded-2xl border border-white/[0.06]">
             {/* Multi-layer gradient background */}
             <div className="absolute inset-0 bg-gradient-to-br from-blue-600/90 via-purple-600/80 to-indigo-700/90" />
@@ -140,7 +140,7 @@ export default function Dashboard() {
             <div className="absolute -bottom-24 -left-12 w-72 h-72 rounded-full bg-purple-400/[0.08] blur-3xl" />
             <div className="absolute top-1/2 right-1/4 w-32 h-32 rounded-full bg-cyan-400/[0.06] blur-2xl" />
 
-            <div className="relative px-4 py-8 sm:px-8 md:py-12 flex items-center justify-between">
+            <div className="relative flex h-full items-center justify-between px-4 py-8 sm:px-8 md:min-h-[360px] md:py-12">
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-blue-200/70 text-sm font-medium">
                   <Sparkles size={14} />
@@ -160,6 +160,8 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
+
+          <TrendPulseRadar />
         </motion.div>
 
         <motion.div variants={stagger.item}>
@@ -285,14 +287,9 @@ export default function Dashboard() {
           })}
         </motion.div>
 
-        {/* ── Trend Pulse Radar + Opportunity Scanner ── */}
-        <motion.div variants={stagger.item} className="grid grid-cols-1 xl:grid-cols-5 gap-6">
-          <div className="xl:col-span-3">
-            <TrendPulseRadar />
-          </div>
-          <div className="xl:col-span-2">
-            <OpportunityScanner />
-          </div>
+        {/* ── Opportunity Scanner ── */}
+        <motion.div variants={stagger.item}>
+          <OpportunityScanner />
         </motion.div>
 
         {/* ── Trending Now ── */}
