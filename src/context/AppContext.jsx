@@ -1,211 +1,374 @@
-import { createContext, useContext, useState, useCallback, useMemo } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { apiRequest } from '@/lib/api';
+import { resetTrendsStore } from '@/data/trends';
 
 const AppContext = createContext(null);
+const GUEST_MODE_KEY = 'owlgorithm:guest-mode';
+const GUEST_PREFERENCES_KEY = 'owlgorithm:guest-preferences';
+const CONNECTED_PLATFORMS_KEY = 'owlgorithm:connected-platforms';
 
-const STORAGE_KEYS = {
-  sidebar: 'owlgorithm:sidebar-collapsed',
-  checklist: 'owlgorithm:onboarding-checklist',
-  platforms: 'owlgorithm:connected-platforms',
-  environment: 'owlgorithm:environment',
-  user: 'owlgorithm:user',
+const DEFAULT_PREFERENCES = {
+  environment: 'gradient:aurora',
+  sidebarCollapsed: false,
 };
 
-const LEGACY_STORAGE_KEYS = {
-  sidebar: 'trendowl:sidebar-collapsed',
-  checklist: 'trendowl:onboarding-checklist',
-  platforms: 'trendowl:connected-platforms',
-  environment: 'trendowl:environment',
-  user: 'trendowl:user',
+const GUEST_USER = {
+  id: 'guest',
+  name: 'Guest',
+  email: 'Read-only access',
+  avatar: 'G',
+  isGuest: true,
 };
 
-function loadFromStorage(key, fallback, legacyKey) {
+function normalizeEnvironment(environment) {
+  const value = `${environment || ''}`.trim();
+  if (!value) return DEFAULT_PREFERENCES.environment;
+  return value;
+}
+
+function buildAnonymousState() {
+  return {
+    authStatus: 'anonymous',
+    user: null,
+    preferences: DEFAULT_PREFERENCES,
+  };
+}
+
+function readStorage(key) {
+  if (typeof window === 'undefined') return null;
+  return window.sessionStorage.getItem(key);
+}
+
+function writeStorage(key, value) {
+  if (typeof window === 'undefined') return;
+  window.sessionStorage.setItem(key, value);
+}
+
+function removeStorage(key) {
+  if (typeof window === 'undefined') return;
+  window.sessionStorage.removeItem(key);
+}
+
+function readLocalJson(key, fallback) {
+  if (typeof window === 'undefined') return fallback;
+
   try {
-    const raw = localStorage.getItem(key) ?? (legacyKey ? localStorage.getItem(legacyKey) : null);
-    return raw !== null ? JSON.parse(raw) : fallback;
+    const raw = window.localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
   } catch {
     return fallback;
   }
 }
 
-function saveToStorage(key, value) {
+function writeLocalJson(key, value) {
+  if (typeof window === 'undefined') return;
+
   try {
-    localStorage.setItem(key, JSON.stringify(value));
+    window.localStorage.setItem(key, JSON.stringify(value));
   } catch {
-    // Storage full or unavailable — silently degrade
+    // Ignore storage failures.
   }
 }
 
-const DEFAULT_CHECKLIST = {
-  connectPlatform: false,
-  discoverTrend: false,
-  schedulePost: false,
-  setNiche: false,
-};
+function guestModeEnabled() {
+  return readStorage(GUEST_MODE_KEY) === '1';
+}
 
-const INITIAL_NOTIFICATIONS = [
-  {
-    id: 'notif-1',
-    title: 'Revenue God deployed new paths',
-    message: 'Three live revenue paths worth $9,400 are deploying under your current guardrails.',
-    time: '2 min ago',
-    read: false,
-  },
-  {
-    id: 'notif-2',
-    title: 'Leakage prevented',
-    message: 'Revenue God intercepted $2,840 in leakage by pausing a weak cold-traffic segment.',
-    time: '1 hour ago',
-    read: false,
-  },
-  {
-    id: 'notif-3',
-    title: 'Bundle engine online',
-    message: 'A new high-intent bundle path is converting at 41% and scaling into the next budget tier.',
-    time: '3 hours ago',
-    read: false,
-  },
-  {
-    id: 'notif-4',
-    title: 'Target beat at P75',
-    message: 'The simulator now projects $47,820 this month if current winners keep clearing confidence thresholds.',
-    time: '5 hours ago',
-    read: true,
-  },
-  {
-    id: 'notif-5',
-    title: 'Creator surge detected',
-    message: 'Creator promo codes are outperforming baseline and the bandit just shifted 18% more budget into the winner.',
-    time: '8 hours ago',
-    read: true,
-  },
-];
+function setGuestMode(enabled) {
+  if (enabled) {
+    writeStorage(GUEST_MODE_KEY, '1');
+    return;
+  }
 
-const STATIC_USER = {
-  name: 'Amy',
-  email: 'amy@owlgorithm.com',
-  avatar: 'A',
-  plan: 'Founding',
-};
+  removeStorage(GUEST_MODE_KEY);
+}
 
-function normalizeEnvironment(env) {
-  if (env === '/snowy-owl.mp4') return '/tech-hud.3840x2160.mp4';
-  return env;
+function readGuestPreferences() {
+  const fallback = { ...DEFAULT_PREFERENCES };
+  const raw = readStorage(GUEST_PREFERENCES_KEY);
+  if (!raw) return fallback;
+
+  try {
+    const parsed = JSON.parse(raw);
+    return {
+      environment: normalizeEnvironment(parsed.environment),
+      sidebarCollapsed: Boolean(parsed.sidebarCollapsed),
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+function writeGuestPreferences(preferences) {
+  writeStorage(GUEST_PREFERENCES_KEY, JSON.stringify(preferences));
+}
+
+function buildGuestState() {
+  return {
+    authStatus: 'guest',
+    user: GUEST_USER,
+    preferences: readGuestPreferences(),
+  };
 }
 
 export function AppProvider({ children }) {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(
-    () => loadFromStorage(STORAGE_KEYS.sidebar, false, LEGACY_STORAGE_KEYS.sidebar)
-  );
+  const [authStatus, setAuthStatus] = useState('loading');
+  const [user, setUser] = useState(null);
+  const [preferences, setPreferences] = useState(DEFAULT_PREFERENCES);
+  const [connectedPlatforms, setConnectedPlatforms] = useState(() => readLocalJson(CONNECTED_PLATFORMS_KEY, []));
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authError, setAuthError] = useState(null);
 
-  const [onboardingChecklist, setOnboardingChecklist] = useState(
-    () => loadFromStorage(STORAGE_KEYS.checklist, DEFAULT_CHECKLIST, LEGACY_STORAGE_KEYS.checklist)
-  );
+  const applySession = useCallback((payload) => {
+    if (payload?.authenticated && payload.user) {
+      setGuestMode(false);
+      setAuthStatus('authenticated');
+      setUser(payload.user);
+      setPreferences({
+        environment: normalizeEnvironment(payload.preferences?.environment),
+        sidebarCollapsed: Boolean(payload.preferences?.sidebarCollapsed),
+      });
+      return;
+    }
 
-  const [connectedPlatforms, setConnectedPlatforms] = useState(
-    () => loadFromStorage(STORAGE_KEYS.platforms, [], LEGACY_STORAGE_KEYS.platforms)
-  );
+    if (guestModeEnabled()) {
+      const guest = buildGuestState();
+      setAuthStatus(guest.authStatus);
+      setUser(guest.user);
+      setPreferences(guest.preferences);
+      return;
+    }
 
-  const [user, setUserState] = useState(
-    () => loadFromStorage(STORAGE_KEYS.user, STATIC_USER, LEGACY_STORAGE_KEYS.user)
-  );
-
-  const [notifications, setNotifications] = useState(INITIAL_NOTIFICATIONS);
-
-  const [environment, setEnvironmentState] = useState(
-    () => normalizeEnvironment(loadFromStorage(STORAGE_KEYS.environment, '/tech-hud.3840x2160.mp4', LEGACY_STORAGE_KEYS.environment))
-  );
-
-  const setEnvironment = useCallback((env) => {
-    const next = normalizeEnvironment(env);
-    setEnvironmentState(next);
-    saveToStorage(STORAGE_KEYS.environment, next);
+    const anonymous = buildAnonymousState();
+    setAuthStatus(anonymous.authStatus);
+    setUser(anonymous.user);
+    setPreferences(anonymous.preferences);
   }, []);
 
-  const updateUser = useCallback((partial) => {
-    setUserState((prev) => {
-      const nextName = partial.name?.trim() || prev.name;
-      const next = {
-        ...prev,
-        ...partial,
-        name: nextName,
-        avatar: nextName.charAt(0).toUpperCase(),
+  const refreshSession = useCallback(async () => {
+    try {
+      const data = await apiRequest('/api/auth/session');
+      applySession(data);
+      setAuthError(null);
+      return data;
+    } catch (error) {
+      applySession(null);
+      setAuthError(error.message);
+      return null;
+    }
+  }, [applySession]);
+
+  useEffect(() => {
+    refreshSession();
+  }, [refreshSession]);
+
+  const runAuthMutation = useCallback(async (endpoint, payload, options = {}) => {
+    const { applySessionResult = false } = options;
+    setAuthBusy(true);
+    setAuthError(null);
+
+    try {
+      const data = await apiRequest(endpoint, {
+        method: 'POST',
+        json: payload,
+      });
+
+      if (applySessionResult) {
+        applySession(data);
+      }
+
+      return { ok: true, data };
+    } catch (error) {
+      setAuthError(error.message);
+      return { ok: false, error };
+    } finally {
+      setAuthBusy(false);
+    }
+  }, [applySession]);
+
+  const signUp = useCallback((payload) => {
+    return runAuthMutation('/api/auth/signup', payload);
+  }, [runAuthMutation]);
+
+  const login = useCallback((payload) => {
+    return runAuthMutation('/api/auth/login', payload, { applySessionResult: true });
+  }, [runAuthMutation]);
+
+  const resendVerification = useCallback((payload) => {
+    return runAuthMutation('/api/auth/verification/resend', payload);
+  }, [runAuthMutation]);
+
+  const requestPasswordReset = useCallback((payload) => {
+    return runAuthMutation('/api/auth/password-reset/request', payload);
+  }, [runAuthMutation]);
+
+  const verifyEmail = useCallback((payload) => {
+    return runAuthMutation('/api/auth/verify-email', payload, { applySessionResult: true });
+  }, [runAuthMutation]);
+
+  const resetPassword = useCallback((payload) => {
+    return runAuthMutation('/api/auth/password-reset/confirm', payload, { applySessionResult: true });
+  }, [runAuthMutation]);
+
+  const continueAsGuest = useCallback(() => {
+    setGuestMode(true);
+    setAuthError(null);
+    resetTrendsStore();
+    applySession(null);
+  }, [applySession]);
+
+  const logout = useCallback(async () => {
+    if (authStatus === 'authenticated') {
+      try {
+        await apiRequest('/api/auth/logout', { method: 'POST' });
+      } catch {
+        // Best effort logout.
+      }
+    }
+
+    setGuestMode(false);
+    resetTrendsStore();
+    applySession(null);
+    setAuthError(null);
+  }, [applySession, authStatus]);
+
+  const updateProfile = useCallback(async ({ name, email }) => {
+    const data = await apiRequest('/api/account/profile', {
+      method: 'PATCH',
+      json: { name, email },
+    });
+
+    applySession(data);
+    return data;
+  }, [applySession]);
+
+  const updatePreferences = useCallback(async (partial) => {
+    const next = {
+      environment: partial.environment ? normalizeEnvironment(partial.environment) : preferences.environment,
+      sidebarCollapsed: partial.sidebarCollapsed ?? preferences.sidebarCollapsed,
+    };
+
+    setPreferences(next);
+
+    if (authStatus === 'guest') {
+      writeGuestPreferences(next);
+      return {
+        authenticated: false,
+        guest: true,
+        preferences: next,
       };
-      saveToStorage(STORAGE_KEYS.user, next);
-      return next;
+    }
+
+    try {
+      const data = await apiRequest('/api/account/preferences', {
+        method: 'PATCH',
+        json: next,
+      });
+      applySession(data);
+      return data;
+    } catch (error) {
+      setPreferences(preferences);
+      throw error;
+    }
+  }, [applySession, authStatus, preferences]);
+
+  const changePassword = useCallback(async ({ currentPassword, newPassword }) => {
+    return apiRequest('/api/account/password', {
+      method: 'POST',
+      json: { currentPassword, newPassword },
     });
   }, []);
+
+  const deleteAccount = useCallback(async ({ password }) => {
+    await apiRequest('/api/account', {
+      method: 'DELETE',
+      json: { password },
+    });
+
+    resetTrendsStore();
+    applySession(null);
+  }, [applySession]);
 
   const toggleSidebar = useCallback(() => {
-    setSidebarCollapsed((prev) => {
-      const next = !prev;
-      saveToStorage(STORAGE_KEYS.sidebar, next);
-      return next;
+    updatePreferences({ sidebarCollapsed: !preferences.sidebarCollapsed }).catch(() => {
+      // Restore happens inside updatePreferences.
     });
-  }, []);
+  }, [preferences.sidebarCollapsed, updatePreferences]);
 
-  const updateChecklist = useCallback((key, value) => {
-    setOnboardingChecklist((prev) => {
-      const next = { ...prev, [key]: value };
-      saveToStorage(STORAGE_KEYS.checklist, next);
-      return next;
+  const setEnvironment = useCallback((value) => {
+    updatePreferences({ environment: value }).catch(() => {
+      // Restore happens inside updatePreferences.
     });
-  }, []);
+  }, [updatePreferences]);
 
-  const connectPlatform = useCallback((id) => {
+  const connectPlatform = useCallback((platformId) => {
     setConnectedPlatforms((prev) => {
-      if (prev.includes(id)) return prev;
-      const next = [...prev, id];
-      saveToStorage(STORAGE_KEYS.platforms, next);
+      if (prev.includes(platformId)) return prev;
+      const next = [...prev, platformId];
+      writeLocalJson(CONNECTED_PLATFORMS_KEY, next);
       return next;
     });
   }, []);
 
-  const disconnectPlatform = useCallback((id) => {
+  const disconnectPlatform = useCallback((platformId) => {
     setConnectedPlatforms((prev) => {
-      const next = prev.filter((p) => p !== id);
-      saveToStorage(STORAGE_KEYS.platforms, next);
+      const next = prev.filter((item) => item !== platformId);
+      writeLocalJson(CONNECTED_PLATFORMS_KEY, next);
       return next;
     });
   }, []);
 
-  const markNotificationRead = useCallback((id) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-    );
-  }, []);
-
-  const value = useMemo(
-    () => ({
-      sidebarCollapsed,
-      toggleSidebar,
-      onboardingChecklist,
-      updateChecklist,
-      connectedPlatforms,
-      connectPlatform,
-      disconnectPlatform,
-      user,
-      updateUser,
-      notifications,
-      markNotificationRead,
-      environment,
-      setEnvironment,
-    }),
-    [
-      sidebarCollapsed,
-      toggleSidebar,
-      onboardingChecklist,
-      updateChecklist,
-      connectedPlatforms,
-      connectPlatform,
-      disconnectPlatform,
-      user,
-      updateUser,
-      notifications,
-      markNotificationRead,
-      environment,
-      setEnvironment,
-    ]
-  );
+  const value = useMemo(() => ({
+    authStatus,
+    isAuthenticated: authStatus === 'authenticated',
+    isGuest: authStatus === 'guest',
+    authBusy,
+    authError,
+    user,
+    sidebarCollapsed: preferences.sidebarCollapsed,
+    environment: preferences.environment,
+    connectedPlatforms,
+    refreshSession,
+    signUp,
+    login,
+    resendVerification,
+    requestPasswordReset,
+    verifyEmail,
+    resetPassword,
+    continueAsGuest,
+    logout,
+    updateProfile,
+    changePassword,
+    deleteAccount,
+    toggleSidebar,
+    setEnvironment,
+    connectPlatform,
+    disconnectPlatform,
+  }), [
+    authBusy,
+    authError,
+    authStatus,
+    connectPlatform,
+    connectedPlatforms,
+    continueAsGuest,
+    deleteAccount,
+    disconnectPlatform,
+    login,
+    logout,
+    requestPasswordReset,
+    preferences.environment,
+    preferences.sidebarCollapsed,
+    refreshSession,
+    resendVerification,
+    resetPassword,
+    setEnvironment,
+    signUp,
+    toggleSidebar,
+    updateProfile,
+    changePassword,
+    user,
+    verifyEmail,
+  ]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }

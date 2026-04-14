@@ -1,25 +1,20 @@
-name: Deploy to GitHub Pages
+name: CI
 
 on:
   push:
     branches: [main]
-
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: true
+  pull_request:
+    branches: [main]
 
 jobs:
-  build:
+  verify:
     runs-on: ubuntu-latest
+    env:
+      ENABLE_SCRAPER: "false"
+      OWLGORITHM_PUBLIC_URL: http://127.0.0.1:3847
+
     steps:
       - uses: actions/checkout@v4
-        with:
-          lfs: true
 
       - uses: actions/setup-node@v4
         with:
@@ -27,18 +22,15 @@ jobs:
           cache: npm
 
       - run: npm ci
-      - run: npx vite build
-
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+      - run: npm run verify
+      - run: npm start > /tmp/owlgorithm.log 2>&1 &
+      - run: |
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3847/api/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/owlgorithm.log
+          exit 1
+      - run: npm run smoke:auth

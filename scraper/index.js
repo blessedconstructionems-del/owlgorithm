@@ -4,26 +4,18 @@
 
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
-import { loadProjectEnv } from '../config/env.js';
+import { ensureDir, getScraperCacheDir, loadProjectEnv } from '../config/env.js';
 import { scrapeGoogleTrends } from './platforms/google-trends.js';
 import { scrapeYouTubeTrending } from './platforms/youtube.js';
 import { scrapeRedditTrending } from './platforms/reddit.js';
 import { scrapeTwitterTrending } from './platforms/twitter.js';
 import { normalizeTrends } from './normalizer.js';
-import { humanDelay } from './anti-detection.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const CACHE_DIR = path.join(__dirname, 'cache');
+const CACHE_DIR = ensureDir(getScraperCacheDir());
 const CACHE_FILE = path.join(CACHE_DIR, 'trends.json');
 const STATUS_FILE = path.join(CACHE_DIR, 'status.json');
 
 loadProjectEnv();
-
-// Ensure cache directory exists
-if (!fs.existsSync(CACHE_DIR)) {
-  fs.mkdirSync(CACHE_DIR, { recursive: true });
-}
 
 // Load cached trends for history continuity
 function loadCache() {
@@ -116,12 +108,6 @@ export async function runScrape(platforms = 'all') {
       console.error(`[${scraper.name}] FAILED:`, err.message);
       updateStatus(scraper.name.toLowerCase(), 'error', 0, err);
       // Continue with other platforms — never let one failure kill the cycle
-    }
-
-    // Stagger between platforms
-    if (scrapers.indexOf(scraper) < scrapers.length - 1) {
-      console.log('[Orchestrator] Waiting between platforms...');
-      await humanDelay('between_platforms');
     }
   }
 

@@ -1,25 +1,42 @@
+import { fileURLToPath, URL } from 'url'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
-import path from 'path'
-import { fileURLToPath } from 'url'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const apiTarget = process.env.OWLGORITHM_DEV_API_TARGET || 'http://127.0.0.1:3847'
+const base = process.env.OWLGORITHM_BASE_PATH || '/'
 
 export default defineConfig({
-  base: '/owlgorithm/',
+  base,
   plugins: [react(), tailwindcss()],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return
+
+          if (id.includes('recharts')) return 'charts'
+          if (id.includes('framer-motion')) return 'motion'
+          if (id.includes('@radix-ui')) return 'radix'
+          if (id.includes('react-router-dom')) return 'router'
+          if (id.includes('react') || id.includes('react-dom')) return 'react-vendor'
+
+          return 'vendor'
+        },
+      },
+    },
+  },
   server: {
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:3847',
-        changeOrigin: true,
+        target: apiTarget,
+        changeOrigin: false,
       },
     },
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
 })

@@ -6,6 +6,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const projectRoot = path.resolve(__dirname, '..');
 
 const ENV_FILES = ['.env.local', '.env'];
+let envLoaded = false;
 
 function parseEnvLine(line) {
   const trimmed = line.trim();
@@ -22,6 +23,8 @@ function parseEnvLine(line) {
 }
 
 export function loadProjectEnv() {
+  if (envLoaded) return;
+
   for (const fileName of ENV_FILES) {
     const envPath = path.join(projectRoot, fileName);
     if (!fs.existsSync(envPath)) continue;
@@ -36,4 +39,36 @@ export function loadProjectEnv() {
       }
     }
   }
+
+  envLoaded = true;
 }
+
+export function getRuntimeDataDir() {
+  const configured = `${process.env.OWLGORITHM_DATA_DIR || ''}`.trim();
+  if (!configured) {
+    return path.join(projectRoot, 'server', 'data');
+  }
+
+  return path.isAbsolute(configured)
+    ? configured
+    : path.join(projectRoot, configured);
+}
+
+export function getScraperCacheDir() {
+  const configuredDataDir = `${process.env.OWLGORITHM_DATA_DIR || ''}`.trim();
+  if (configuredDataDir) {
+    const dataDir = path.isAbsolute(configuredDataDir)
+      ? configuredDataDir
+      : path.join(projectRoot, configuredDataDir);
+    return path.join(dataDir, 'cache');
+  }
+
+  return path.join(projectRoot, 'scraper', 'cache');
+}
+
+export function ensureDir(dirPath) {
+  fs.mkdirSync(dirPath, { recursive: true });
+  return dirPath;
+}
+
+loadProjectEnv();

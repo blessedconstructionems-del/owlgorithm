@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/purity */
 import { useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -504,7 +505,7 @@ export default function Leaderboard() {
     []
   );
 
-  const handlePredictionSubmit = useCallback((trendId, prediction, confidence) => {
+  const handlePredictionSubmit = useCallback(() => {
     // Prediction submission handler
   }, []);
 

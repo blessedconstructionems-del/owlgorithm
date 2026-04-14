@@ -187,7 +187,7 @@ const barVariants = {
 
 // ── Sub-components ───────────────────────────────────────────────────
 
-function TimelineNode({ event, index, isLast }) {
+function TimelineNode({ event, index }) {
   const meta = STAGE_META[event.stage] || STAGE_META.origin;
   const platformKey = event.icon || null;
 

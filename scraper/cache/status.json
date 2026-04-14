@@ -1,27 +1,27 @@
 {
   "google": {
     "status": "ok",
-    "count": 160,
+    "count": 10,
     "error": null,
-    "lastRun": "2026-04-01T02:38:17.442Z"
+    "lastRun": "2026-04-14T01:58:05.818Z"
   },
-  "lastFullRun": "2026-04-01T02:39:35.448Z",
+  "lastFullRun": "2026-04-14T01:58:07.000Z",
   "youtube": {
     "status": "ok",
-    "count": 11,
+    "count": 40,
     "error": null,
-    "lastRun": "2026-04-01T02:38:47.372Z"
+    "lastRun": "2026-04-14T01:58:06.223Z"
   },
   "reddit": {
     "status": "ok",
-    "count": 33,
+    "count": 23,
     "error": null,
-    "lastRun": "2026-04-01T02:39:10.682Z"
+    "lastRun": "2026-04-14T01:58:06.809Z"
   },
   "twitter/x": {
     "status": "ok",
-    "count": 29,
+    "count": 49,
     "error": null,
-    "lastRun": "2026-04-01T02:39:35.448Z"
+    "lastRun": "2026-04-14T01:58:06.979Z"
   }
 }
