@@ -5,7 +5,7 @@ import { ensureDir, getRuntimeDataDir } from '../config/env.js';
 
 const DATA_DIR = ensureDir(getRuntimeDataDir());
 const DB_PATH = path.join(DATA_DIR, 'owlgorithm.db');
-const DEFAULT_ENVIRONMENT = 'gradient:aurora';
+const DEFAULT_ENVIRONMENT = '/snowy-owl.mp4';
 
 const db = new Database(DB_PATH);
 

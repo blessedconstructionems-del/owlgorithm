@@ -32,6 +32,7 @@ const ACCOUNT_TOKEN_TYPES = {
   passwordReset: 'password_reset',
 };
 const ENVIRONMENT_OPTIONS = new Set([
+  '/snowy-owl.mp4',
   '/fantasy-mountain-landscape.1920x1080.mp4',
   '/cosmos-flowers.3840x2160.mp4',
   '/circuit-board.3840x2160.mp4',

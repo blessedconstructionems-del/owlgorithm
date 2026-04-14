@@ -20,6 +20,7 @@ import { useScrapeStatus } from '@/hooks/useScrapeStatus';
 import { getFreshnessState } from '@/lib/trendMetrics';
 
 const ENVIRONMENTS = [
+  { id: '/snowy-owl.mp4', name: 'Snowy Owl', preview: 'linear-gradient(135deg, #dbe9ff, #7ba4d9, #173a63)' },
   { id: '/fantasy-mountain-landscape.1920x1080.mp4', name: 'Fantasy Mountain', preview: 'linear-gradient(135deg, #1a3a2a, #2d4a3a, #4a6a5a)' },
   { id: '/cosmos-flowers.3840x2160.mp4', name: 'Cosmos Flowers', preview: 'linear-gradient(135deg, #2a1a3a, #4a2d5a, #6a3a7a)' },
   { id: '/circuit-board.3840x2160.mp4', name: 'Circuit Board', preview: 'linear-gradient(135deg, #0a1a2a, #1a3a4a, #0a2a3a)' },

@@ -8,9 +8,10 @@ const GUEST_MODE_KEY = 'owlgorithm:guest-mode';
 const GUEST_PREFERENCES_KEY = 'owlgorithm:guest-preferences';
 const CONNECTED_PLATFORMS_KEY = 'owlgorithm:connected-platforms';
 const ONBOARDING_CHECKLIST_KEY = 'owlgorithm:onboarding-checklist';
+const DEFAULT_ENVIRONMENT = '/snowy-owl.mp4';
 
 const DEFAULT_PREFERENCES = {
-  environment: 'gradient:aurora',
+  environment: DEFAULT_ENVIRONMENT,
   sidebarCollapsed: false,
 };
 
@@ -71,6 +72,7 @@ const GUEST_USER = {
 function normalizeEnvironment(environment) {
   const value = `${environment || ''}`.trim();
   if (!value) return DEFAULT_PREFERENCES.environment;
+  if (value === '/snowy-owl.3840x2160.mp4') return DEFAULT_ENVIRONMENT;
   return value;
 }
 
@@ -153,8 +155,9 @@ function readGuestPreferences() {
 
   try {
     const parsed = JSON.parse(raw);
+    const environment = normalizeEnvironment(parsed.environment);
     return {
-      environment: normalizeEnvironment(parsed.environment),
+      environment: environment === 'gradient:aurora' ? DEFAULT_ENVIRONMENT : environment,
       sidebarCollapsed: Boolean(parsed.sidebarCollapsed),
     };
   } catch {
