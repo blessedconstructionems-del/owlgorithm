@@ -7,17 +7,64 @@ const AppContext = createContext(null);
 const GUEST_MODE_KEY = 'owlgorithm:guest-mode';
 const GUEST_PREFERENCES_KEY = 'owlgorithm:guest-preferences';
 const CONNECTED_PLATFORMS_KEY = 'owlgorithm:connected-platforms';
+const ONBOARDING_CHECKLIST_KEY = 'owlgorithm:onboarding-checklist';
 
 const DEFAULT_PREFERENCES = {
   environment: 'gradient:aurora',
   sidebarCollapsed: false,
 };
 
+const DEFAULT_CHECKLIST = {
+  connectPlatform: false,
+  discoverTrend: false,
+  schedulePost: false,
+  setNiche: false,
+};
+
+const INITIAL_NOTIFICATIONS = [
+  {
+    id: 'notif-1',
+    title: 'Revenue God deployed new paths',
+    message: 'Three live revenue paths worth $9,400 are deploying under your current guardrails.',
+    time: '2 min ago',
+    read: false,
+  },
+  {
+    id: 'notif-2',
+    title: 'Leakage prevented',
+    message: 'Revenue God intercepted $2,840 in leakage by pausing a weak cold-traffic segment.',
+    time: '1 hour ago',
+    read: false,
+  },
+  {
+    id: 'notif-3',
+    title: 'Bundle engine online',
+    message: 'A new high-intent bundle path is converting at 41% and scaling into the next budget tier.',
+    time: '3 hours ago',
+    read: false,
+  },
+  {
+    id: 'notif-4',
+    title: 'Target beat at P75',
+    message: 'The simulator now projects $47,820 this month if current winners keep clearing confidence thresholds.',
+    time: '5 hours ago',
+    read: true,
+  },
+  {
+    id: 'notif-5',
+    title: 'Creator surge detected',
+    message: 'Creator promo codes are outperforming baseline and the bandit just shifted 18% more budget into the winner.',
+    time: '8 hours ago',
+    read: true,
+  },
+];
+
 const GUEST_USER = {
   id: 'guest',
   name: 'Guest',
   email: 'Read-only access',
   avatar: 'G',
+  plan: 'Guest',
   isGuest: true,
 };
 
@@ -25,6 +72,21 @@ function normalizeEnvironment(environment) {
   const value = `${environment || ''}`.trim();
   if (!value) return DEFAULT_PREFERENCES.environment;
   return value;
+}
+
+function normalizeUser(user, fallback = {}) {
+  const name = `${user?.name || fallback.name || 'Owlgorithm User'}`.trim() || 'Owlgorithm User';
+  const email = `${user?.email || fallback.email || ''}`.trim();
+
+  return {
+    ...fallback,
+    ...user,
+    name,
+    email,
+    avatar: name.charAt(0).toUpperCase(),
+    plan: `${user?.plan || fallback.plan || 'Founding'}`.trim() || 'Founding',
+    isGuest: Boolean(user?.isGuest || fallback.isGuest),
+  };
 }
 
 function buildAnonymousState() {
@@ -107,7 +169,7 @@ function writeGuestPreferences(preferences) {
 function buildGuestState() {
   return {
     authStatus: 'guest',
-    user: GUEST_USER,
+    user: normalizeUser(GUEST_USER, GUEST_USER),
     preferences: readGuestPreferences(),
   };
 }
@@ -117,6 +179,8 @@ export function AppProvider({ children }) {
   const [user, setUser] = useState(null);
   const [preferences, setPreferences] = useState(DEFAULT_PREFERENCES);
   const [connectedPlatforms, setConnectedPlatforms] = useState(() => readLocalJson(CONNECTED_PLATFORMS_KEY, []));
+  const [onboardingChecklist, setOnboardingChecklist] = useState(() => readLocalJson(ONBOARDING_CHECKLIST_KEY, DEFAULT_CHECKLIST));
+  const [notifications, setNotifications] = useState(INITIAL_NOTIFICATIONS);
   const [authBusy, setAuthBusy] = useState(false);
   const [authError, setAuthError] = useState(null);
 
@@ -124,7 +188,7 @@ export function AppProvider({ children }) {
     if (payload?.authenticated && payload.user) {
       setGuestMode(false);
       setAuthStatus('authenticated');
-      setUser(payload.user);
+      setUser(normalizeUser(payload.user));
       setPreferences({
         environment: normalizeEnvironment(payload.preferences?.environment),
         sidebarCollapsed: Boolean(payload.preferences?.sidebarCollapsed),
@@ -328,6 +392,20 @@ export function AppProvider({ children }) {
     });
   }, []);
 
+  const updateChecklist = useCallback((key, value) => {
+    setOnboardingChecklist((prev) => {
+      const next = { ...prev, [key]: value };
+      writeLocalJson(ONBOARDING_CHECKLIST_KEY, next);
+      return next;
+    });
+  }, []);
+
+  const markNotificationRead = useCallback((id) => {
+    setNotifications((prev) => prev.map((notification) => (
+      notification.id === id ? { ...notification, read: true } : notification
+    )));
+  }, []);
+
   const value = useMemo(() => ({
     authStatus,
     isAuthenticated: authStatus === 'authenticated',
@@ -338,6 +416,8 @@ export function AppProvider({ children }) {
     sidebarCollapsed: preferences.sidebarCollapsed,
     environment: preferences.environment,
     connectedPlatforms,
+    onboardingChecklist,
+    notifications,
     refreshSession,
     signUp,
     login,
@@ -354,6 +434,8 @@ export function AppProvider({ children }) {
     setEnvironment,
     connectPlatform,
     disconnectPlatform,
+    updateChecklist,
+    markNotificationRead,
   }), [
     authBusy,
     authError,
@@ -364,7 +446,10 @@ export function AppProvider({ children }) {
     deleteAccount,
     disconnectPlatform,
     login,
+    markNotificationRead,
     logout,
+    notifications,
+    onboardingChecklist,
     requestPasswordReset,
     preferences.environment,
     preferences.sidebarCollapsed,
@@ -374,6 +459,7 @@ export function AppProvider({ children }) {
     setEnvironment,
     signUp,
     toggleSidebar,
+    updateChecklist,
     updateProfile,
     changePassword,
     user,
