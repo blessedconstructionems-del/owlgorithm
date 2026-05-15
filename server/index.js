@@ -31,6 +31,19 @@ import {
   sendPasswordResetEmail,
   sendVerificationEmail,
 } from './email.js';
+import {
+  buildMediaPlan,
+  generateMediaAsset,
+  getMediaReadiness,
+  getVideoStatus,
+  normalizeMediaRequest,
+} from './media.js';
+import {
+  getSocialPostStatus,
+  getSocialReadiness,
+  normalizeSocialRequest,
+  publishSocialPost,
+} from './social.js';
 
 const CACHE_DIR = getScraperCacheDir();
 const TRENDS_FILE = path.join(CACHE_DIR, 'trends.json');
@@ -107,7 +120,7 @@ function securityHeaders(contentType, extra = {}) {
     'Referrer-Policy': 'strict-origin-when-cross-origin',
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',
-    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+    'Permissions-Policy': 'camera=(self), microphone=(self), geolocation=()',
     ...extra,
   };
 }
@@ -119,8 +132,10 @@ function contentTypeFor(filePath) {
     '.html': 'text/html; charset=utf-8',
     '.js': 'application/javascript; charset=utf-8',
     '.json': 'application/json; charset=utf-8',
+    '.mp4': 'video/mp4',
     '.png': 'image/png',
     '.svg': 'image/svg+xml',
+    '.webm': 'video/webm',
     '.woff': 'font/woff',
     '.woff2': 'font/woff2',
   };
@@ -176,6 +191,11 @@ function serveFrontend(res, pathname, method = 'GET') {
 
   if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
     serveFile(res, candidate, 200, method);
+    return;
+  }
+
+  if (path.extname(relativePath)) {
+    jsonResponse(res, { error: 'Asset not found' }, 404);
     return;
   }
 
@@ -499,8 +519,86 @@ const server = http.createServer(async (req, res) => {
       return jsonResponse(res, result);
     }
 
+    if (pathname === '/api/media/readiness' && req.method === 'GET') {
+      return jsonResponse(res, getMediaReadiness());
+    }
+
+    if (pathname === '/api/social/readiness' && req.method === 'GET') {
+      return jsonResponse(res, getSocialReadiness());
+    }
+
     const auth = requireAuth(res, req, authState);
     if (!auth) return;
+
+    if (pathname === '/api/media/plan' && req.method === 'POST') {
+      const body = await readJsonBody(req);
+      const request = normalizeMediaRequest(body);
+      const trends = loadTrends();
+      const trend = body.trendId ? trends.find((item) => item.id === body.trendId) : null;
+
+      if (body.trendId && !trend) {
+        return jsonResponse(res, { error: 'Selected trend was not found.', code: 'invalid_media_request' }, 404);
+      }
+
+      const plan = buildMediaPlan(request, trend);
+      return jsonResponse(res, { request, plan, trend });
+    }
+
+    if (pathname === '/api/media/generate' && req.method === 'POST') {
+      const body = await readJsonBody(req);
+      const request = normalizeMediaRequest(body);
+      const trends = loadTrends();
+      const trend = body.trendId ? trends.find((item) => item.id === body.trendId) : null;
+
+      if (body.trendId && !trend) {
+        return jsonResponse(res, { error: 'Selected trend was not found.', code: 'invalid_media_request' }, 404);
+      }
+
+      const plan = buildMediaPlan(request, trend);
+      const asset = await generateMediaAsset({ request, plan });
+      return jsonResponse(res, { request, plan, trend, asset });
+    }
+
+    if (pathname.startsWith('/api/media/video/') && req.method === 'GET') {
+      const requestId = decodeURIComponent(pathname.replace('/api/media/video/', ''));
+      const video = await getVideoStatus(requestId);
+      return jsonResponse(res, { video });
+    }
+
+    if (pathname === '/api/social/accounts' && req.method === 'GET') {
+      const socialReadiness = getSocialReadiness();
+      return jsonResponse(res, {
+        configured: socialReadiness.configured,
+        profileConfigured: socialReadiness.profileConfigured,
+        platforms: socialReadiness.platforms,
+      });
+    }
+
+    if (pathname === '/api/social/post' && req.method === 'POST') {
+      const body = await readJsonBody(req);
+      const request = normalizeSocialRequest(body);
+      const post = await publishSocialPost(request);
+      return jsonResponse(res, { request, post });
+    }
+
+    if (pathname === '/api/social/schedule' && req.method === 'POST') {
+      const body = await readJsonBody(req);
+      const request = normalizeSocialRequest(body);
+      if (!request.scheduledDate) {
+        return jsonResponse(res, {
+          error: 'Scheduled publishing requires a future ISO timestamp.',
+          code: 'invalid_social_request',
+        }, 400);
+      }
+      const post = await publishSocialPost(request);
+      return jsonResponse(res, { request, post });
+    }
+
+    if (pathname.startsWith('/api/social/status/') && req.method === 'GET') {
+      const requestId = decodeURIComponent(pathname.replace('/api/social/status/', ''));
+      const status = await getSocialPostStatus(requestId);
+      return jsonResponse(res, { status });
+    }
 
     if (pathname === '/api/account/profile' && req.method === 'PATCH') {
       const body = await readJsonBody(req);
@@ -579,6 +677,18 @@ const server = http.createServer(async (req, res) => {
           ? 400
           : err.code === 'email_unavailable'
             ? 503
+          : err.code === 'media_unavailable'
+            ? 503
+          : err.code === 'invalid_media_request'
+            ? 400
+          : err.code === 'media_provider_error'
+            ? err.status || 502
+          : err.code === 'social_unavailable'
+            ? 503
+          : err.code === 'invalid_social_request'
+            ? 400
+          : err.code === 'social_provider_error'
+            ? err.status || 502
           : err.message === 'Request body too large.'
             ? 413
             : err.message === 'Invalid JSON body.'
@@ -618,6 +728,15 @@ server.listen(PORT, HOST, () => {
   console.log('  GET  /api/trends/:id');
   console.log('  GET  /api/opportunities');
   console.log('  GET  /api/scrape/status');
+  console.log('  GET  /api/media/readiness');
+  console.log('  POST /api/media/plan');
+  console.log('  POST /api/media/generate');
+  console.log('  GET  /api/media/video/:requestId');
+  console.log('  GET  /api/social/readiness');
+  console.log('  GET  /api/social/accounts');
+  console.log('  POST /api/social/post');
+  console.log('  POST /api/social/schedule');
+  console.log('  GET  /api/social/status/:requestId');
   if (SCRAPER_ENABLED) {
     console.log('  POST /api/scrape/run');
   } else {
@@ -638,6 +757,16 @@ server.listen(PORT, HOST, () => {
 
   if (!process.env.OWLGORITHM_ADMIN_TOKEN) {
     console.warn('[Owlgorithm Server] OWLGORITHM_ADMIN_TOKEN is not set. Manual scrape runs fall back to loopback-only access.');
+  }
+
+  const mediaReadiness = getMediaReadiness();
+  if (!mediaReadiness.configured) {
+    console.warn(`[Owlgorithm Server] Media generation is disabled until ${mediaReadiness.missing.join(', ')} is configured.`);
+  }
+
+  const socialReadiness = getSocialReadiness();
+  if (!socialReadiness.configured) {
+    console.warn(`[Owlgorithm Server] Social publishing is disabled until ${socialReadiness.missing.join(', ')} is configured.`);
   }
 });
 

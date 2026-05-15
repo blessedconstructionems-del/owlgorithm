@@ -1,7 +1,6 @@
 import { Outlet } from 'react-router-dom';
 import Sidebar from '@/components/layout/Sidebar';
 import TopBar from '@/components/layout/TopBar';
-import TrendSignalChat from '@/components/shared/TrendSignalChat';
 import { useApp } from '@/context/AppContext';
 
 const GRADIENT_MAP = {
@@ -47,7 +46,6 @@ export default function AppLayout() {
           </div>
         </main>
       </div>
-      <TrendSignalChat />
     </div>
   );
 }

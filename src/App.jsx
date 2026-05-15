@@ -4,17 +4,9 @@ import AppLayout from './components/layout/AppLayout';
 import { useApp } from './context/AppContext';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
-const RevenueGodMode = lazy(() => import('./pages/RevenueGodMode'));
 const TrendRadar = lazy(() => import('./pages/TrendRadar'));
-const Scheduler = lazy(() => import('./pages/Scheduler'));
-const Analytics = lazy(() => import('./pages/Analytics'));
-const ABTesting = lazy(() => import('./pages/ABTesting'));
-const Leaderboard = lazy(() => import('./pages/Leaderboard'));
-const TruthRadar = lazy(() => import('./pages/TruthRadar'));
-const Strategy = lazy(() => import('./pages/Strategy'));
 const NightWatch = lazy(() => import('./pages/NightWatch'));
-const Platforms = lazy(() => import('./pages/Platforms'));
-const Wellness = lazy(() => import('./pages/Wellness'));
+const MediaBuilder = lazy(() => import('./pages/MediaBuilder'));
 const Settings = lazy(() => import('./pages/Settings'));
 const AuthPage = lazy(() => import('./pages/Auth'));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPassword'));
@@ -99,18 +91,19 @@ function App() {
       </Route>
       <Route element={<ProtectedLayout />}>
         <Route path="/" element={<RoutedPage component={Dashboard} />} />
-        <Route path="/revenue-god-mode" element={<RoutedPage component={RevenueGodMode} />} />
         <Route path="/trends" element={<RoutedPage component={TrendRadar} />} />
-        <Route path="/scheduler" element={<RoutedPage component={Scheduler} />} />
-        <Route path="/analytics" element={<RoutedPage component={Analytics} />} />
-        <Route path="/ab-testing" element={<RoutedPage component={ABTesting} />} />
-        <Route path="/leaderboard" element={<RoutedPage component={Leaderboard} />} />
-        <Route path="/truth-radar" element={<RoutedPage component={TruthRadar} />} />
-        <Route path="/strategy" element={<RoutedPage component={Strategy} />} />
         <Route path="/night-watch" element={<RoutedPage component={NightWatch} />} />
-        <Route path="/platforms" element={<RoutedPage component={Platforms} />} />
-        <Route path="/wellness" element={<RoutedPage component={Wellness} />} />
+        <Route path="/media" element={<RoutedPage component={MediaBuilder} />} />
         <Route path="/settings" element={<RoutedPage component={Settings} />} />
+        <Route path="/revenue-god-mode" element={<Navigate replace to="/" />} />
+        <Route path="/scheduler" element={<Navigate replace to="/" />} />
+        <Route path="/analytics" element={<Navigate replace to="/" />} />
+        <Route path="/ab-testing" element={<Navigate replace to="/" />} />
+        <Route path="/leaderboard" element={<Navigate replace to="/" />} />
+        <Route path="/truth-radar" element={<Navigate replace to="/" />} />
+        <Route path="/strategy" element={<Navigate replace to="/" />} />
+        <Route path="/platforms" element={<Navigate replace to="/" />} />
+        <Route path="/wellness" element={<Navigate replace to="/" />} />
       </Route>
       <Route path="*" element={<Navigate replace to="/" />} />
     </Routes>

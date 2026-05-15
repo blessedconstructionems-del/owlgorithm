@@ -45,7 +45,6 @@ export default function AuthPage() {
   const {
     signUp,
     login,
-    continueAsGuest,
     resendVerification,
     requestPasswordReset,
     authBusy,
@@ -283,20 +282,7 @@ export default function AuthPage() {
           </button>
         ) : null}
 
-        {mode !== 'forgot' ? (
-          <button
-            type="button"
-            onClick={() => {
-              setLocalError(null);
-              setNotice(null);
-              continueAsGuest();
-            }}
-            disabled={authBusy}
-            className="w-full rounded-lg border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Continue as guest
-          </button>
-        ) : (
+        {mode === 'forgot' ? (
           <button
             type="button"
             onClick={() => switchMode('login')}
@@ -304,7 +290,7 @@ export default function AuthPage() {
           >
             Back to sign in
           </button>
-        )}
+        ) : null}
       </form>
 
       <div className="mt-6 text-xs text-gray-500">

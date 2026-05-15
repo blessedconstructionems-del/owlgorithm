@@ -207,7 +207,14 @@ export default function OpportunityScanner({ trendItems }) {
         initial="hidden"
         animate="show"
       >
-        {topOpportunities.map((trend, i) => {
+        {topOpportunities.length === 0 ? (
+          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-8 text-center">
+            <p className="text-sm font-medium text-white">No opportunities yet</p>
+            <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-slate-500">
+              Opportunity rankings appear after the backend scraper returns live trend records.
+            </p>
+          </div>
+        ) : topOpportunities.map((trend, i) => {
           const rank = i + 1;
           const isTop = rank === 1;
           const window = estimateWindow(trend.saturation);

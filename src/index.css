@@ -101,6 +101,11 @@ body::after {
   z-index: 0;
 }
 
+.glass-card > * {
+  position: relative;
+  z-index: 1;
+}
+
 .glass-card-hover {
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;

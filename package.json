@@ -10,9 +10,10 @@
     "preview": "vite preview",
     "server": "node server/index.js",
     "scrape": "node scraper/index.js",
+    "check:cycles": "node scripts/check-cycles.cjs",
     "smoke:auth": "bash scripts/smoke-auth.sh",
     "start": "node server/index.js",
-    "verify": "npm run lint && npm run build"
+    "verify": "npm run lint && npm run check:cycles && npm run build"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.11",

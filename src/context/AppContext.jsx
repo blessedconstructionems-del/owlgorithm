@@ -1,13 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { apiRequest } from '@/lib/api';
-import { STATIC_DEMO } from '@/lib/runtime';
 import { resetTrendsStore } from '@/data/trends';
 
 const AppContext = createContext(null);
-const GUEST_MODE_KEY = 'owlgorithm:guest-mode';
-const GUEST_PREFERENCES_KEY = 'owlgorithm:guest-preferences';
-const CONNECTED_PLATFORMS_KEY = 'owlgorithm:connected-platforms';
-const ONBOARDING_CHECKLIST_KEY = 'owlgorithm:onboarding-checklist';
 const DEFAULT_ENVIRONMENT = '/snowy-owl.mp4';
 
 const DEFAULT_PREFERENCES = {
@@ -15,59 +10,7 @@ const DEFAULT_PREFERENCES = {
   sidebarCollapsed: false,
 };
 
-const DEFAULT_CHECKLIST = {
-  connectPlatform: false,
-  discoverTrend: false,
-  schedulePost: false,
-  setNiche: false,
-};
-
-const INITIAL_NOTIFICATIONS = [
-  {
-    id: 'notif-1',
-    title: 'Revenue God deployed new paths',
-    message: 'Three live revenue paths worth $9,400 are deploying under your current guardrails.',
-    time: '2 min ago',
-    read: false,
-  },
-  {
-    id: 'notif-2',
-    title: 'Leakage prevented',
-    message: 'Revenue God intercepted $2,840 in leakage by pausing a weak cold-traffic segment.',
-    time: '1 hour ago',
-    read: false,
-  },
-  {
-    id: 'notif-3',
-    title: 'Bundle engine online',
-    message: 'A new high-intent bundle path is converting at 41% and scaling into the next budget tier.',
-    time: '3 hours ago',
-    read: false,
-  },
-  {
-    id: 'notif-4',
-    title: 'Target beat at P75',
-    message: 'The simulator now projects $47,820 this month if current winners keep clearing confidence thresholds.',
-    time: '5 hours ago',
-    read: true,
-  },
-  {
-    id: 'notif-5',
-    title: 'Creator surge detected',
-    message: 'Creator promo codes are outperforming baseline and the bandit just shifted 18% more budget into the winner.',
-    time: '8 hours ago',
-    read: true,
-  },
-];
-
-const GUEST_USER = {
-  id: 'guest',
-  name: 'Guest',
-  email: 'Read-only access',
-  avatar: 'G',
-  plan: 'Guest',
-  isGuest: true,
-};
+const INITIAL_NOTIFICATIONS = [];
 
 function normalizeEnvironment(environment) {
   const value = `${environment || ''}`.trim();
@@ -99,120 +42,22 @@ function buildAnonymousState() {
   };
 }
 
-function readStorage(key) {
-  if (typeof window === 'undefined') return null;
-  return window.sessionStorage.getItem(key);
-}
-
-function writeStorage(key, value) {
-  if (typeof window === 'undefined') return;
-  window.sessionStorage.setItem(key, value);
-}
-
-function removeStorage(key) {
-  if (typeof window === 'undefined') return;
-  window.sessionStorage.removeItem(key);
-}
-
-function readLocalJson(key, fallback) {
-  if (typeof window === 'undefined') return fallback;
-
-  try {
-    const raw = window.localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function writeLocalJson(key, value) {
-  if (typeof window === 'undefined') return;
-
-  try {
-    window.localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    // Ignore storage failures.
-  }
-}
-
-function guestModeEnabled() {
-  return readStorage(GUEST_MODE_KEY) === '1';
-}
-
-function setGuestMode(enabled) {
-  if (enabled) {
-    writeStorage(GUEST_MODE_KEY, '1');
-    return;
-  }
-
-  removeStorage(GUEST_MODE_KEY);
-}
-
-function readGuestPreferences() {
-  const fallback = { ...DEFAULT_PREFERENCES };
-  const raw = readStorage(GUEST_PREFERENCES_KEY);
-  if (!raw) return fallback;
-
-  try {
-    const parsed = JSON.parse(raw);
-    const environment = normalizeEnvironment(parsed.environment);
-    return {
-      environment: environment === 'gradient:aurora' ? DEFAULT_ENVIRONMENT : environment,
-      sidebarCollapsed: Boolean(parsed.sidebarCollapsed),
-    };
-  } catch {
-    return fallback;
-  }
-}
-
-function writeGuestPreferences(preferences) {
-  writeStorage(GUEST_PREFERENCES_KEY, JSON.stringify(preferences));
-}
-
-function buildGuestState() {
-  return {
-    authStatus: 'guest',
-    user: normalizeUser(GUEST_USER, GUEST_USER),
-    preferences: readGuestPreferences(),
-  };
-}
-
 export function AppProvider({ children }) {
   const [authStatus, setAuthStatus] = useState('loading');
   const [user, setUser] = useState(null);
   const [preferences, setPreferences] = useState(DEFAULT_PREFERENCES);
-  const [connectedPlatforms, setConnectedPlatforms] = useState(() => readLocalJson(CONNECTED_PLATFORMS_KEY, []));
-  const [onboardingChecklist, setOnboardingChecklist] = useState(() => readLocalJson(ONBOARDING_CHECKLIST_KEY, DEFAULT_CHECKLIST));
   const [notifications, setNotifications] = useState(INITIAL_NOTIFICATIONS);
   const [authBusy, setAuthBusy] = useState(false);
   const [authError, setAuthError] = useState(null);
 
   const applySession = useCallback((payload) => {
     if (payload?.authenticated && payload.user) {
-      setGuestMode(false);
       setAuthStatus('authenticated');
       setUser(normalizeUser(payload.user));
       setPreferences({
         environment: normalizeEnvironment(payload.preferences?.environment),
         sidebarCollapsed: Boolean(payload.preferences?.sidebarCollapsed),
       });
-      return;
-    }
-
-    if (guestModeEnabled()) {
-      const guest = buildGuestState();
-      setAuthStatus(guest.authStatus);
-      setUser(guest.user);
-      setPreferences(guest.preferences);
-      return;
-    }
-
-    if (STATIC_DEMO) {
-      setGuestMode(true);
-      const guest = buildGuestState();
-      setAuthStatus(guest.authStatus);
-      setUser(guest.user);
-      setPreferences(guest.preferences);
       return;
     }
 
@@ -287,13 +132,6 @@ export function AppProvider({ children }) {
     return runAuthMutation('/api/auth/password-reset/confirm', payload, { applySessionResult: true });
   }, [runAuthMutation]);
 
-  const continueAsGuest = useCallback(() => {
-    setGuestMode(true);
-    setAuthError(null);
-    resetTrendsStore();
-    applySession(null);
-  }, [applySession]);
-
   const logout = useCallback(async () => {
     if (authStatus === 'authenticated') {
       try {
@@ -303,7 +141,6 @@ export function AppProvider({ children }) {
       }
     }
 
-    setGuestMode(false);
     resetTrendsStore();
     applySession(null);
     setAuthError(null);
@@ -327,15 +164,6 @@ export function AppProvider({ children }) {
 
     setPreferences(next);
 
-    if (authStatus === 'guest') {
-      writeGuestPreferences(next);
-      return {
-        authenticated: false,
-        guest: true,
-        preferences: next,
-      };
-    }
-
     try {
       const data = await apiRequest('/api/account/preferences', {
         method: 'PATCH',
@@ -347,7 +175,7 @@ export function AppProvider({ children }) {
       setPreferences(preferences);
       throw error;
     }
-  }, [applySession, authStatus, preferences]);
+  }, [applySession, preferences]);
 
   const changePassword = useCallback(async ({ currentPassword, newPassword }) => {
     return apiRequest('/api/account/password', {
@@ -378,31 +206,6 @@ export function AppProvider({ children }) {
     });
   }, [updatePreferences]);
 
-  const connectPlatform = useCallback((platformId) => {
-    setConnectedPlatforms((prev) => {
-      if (prev.includes(platformId)) return prev;
-      const next = [...prev, platformId];
-      writeLocalJson(CONNECTED_PLATFORMS_KEY, next);
-      return next;
-    });
-  }, []);
-
-  const disconnectPlatform = useCallback((platformId) => {
-    setConnectedPlatforms((prev) => {
-      const next = prev.filter((item) => item !== platformId);
-      writeLocalJson(CONNECTED_PLATFORMS_KEY, next);
-      return next;
-    });
-  }, []);
-
-  const updateChecklist = useCallback((key, value) => {
-    setOnboardingChecklist((prev) => {
-      const next = { ...prev, [key]: value };
-      writeLocalJson(ONBOARDING_CHECKLIST_KEY, next);
-      return next;
-    });
-  }, []);
-
   const markNotificationRead = useCallback((id) => {
     setNotifications((prev) => prev.map((notification) => (
       notification.id === id ? { ...notification, read: true } : notification
@@ -418,8 +221,6 @@ export function AppProvider({ children }) {
     user,
     sidebarCollapsed: preferences.sidebarCollapsed,
     environment: preferences.environment,
-    connectedPlatforms,
-    onboardingChecklist,
     notifications,
     refreshSession,
     signUp,
@@ -428,31 +229,22 @@ export function AppProvider({ children }) {
     requestPasswordReset,
     verifyEmail,
     resetPassword,
-    continueAsGuest,
     logout,
     updateProfile,
     changePassword,
     deleteAccount,
     toggleSidebar,
     setEnvironment,
-    connectPlatform,
-    disconnectPlatform,
-    updateChecklist,
     markNotificationRead,
   }), [
     authBusy,
     authError,
     authStatus,
-    connectPlatform,
-    connectedPlatforms,
-    continueAsGuest,
     deleteAccount,
-    disconnectPlatform,
     login,
     markNotificationRead,
     logout,
     notifications,
-    onboardingChecklist,
     requestPasswordReset,
     preferences.environment,
     preferences.sidebarCollapsed,
@@ -462,7 +254,6 @@ export function AppProvider({ children }) {
     setEnvironment,
     signUp,
     toggleSidebar,
-    updateChecklist,
     updateProfile,
     changePassword,
     user,

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError, apiRequest } from '@/lib/api';
-import { STATIC_DEMO, staticAssetUrl } from '@/lib/runtime';
 
 const POLL_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -26,24 +25,7 @@ export function useScrapeStatus(enabled = true) {
       setState({ data, loading: false, error: null });
       return data;
     } catch (error) {
-      let requestError = error;
-
-      if (STATIC_DEMO) {
-        try {
-          const response = await fetch(staticAssetUrl('demo/scrape-status.json'));
-          if (!response.ok) {
-            throw new Error('Static demo status is unavailable.');
-          }
-
-          const data = await response.json();
-          setState({ data, loading: false, error: null });
-          return data;
-        } catch (demoError) {
-          requestError = demoError;
-        }
-      }
-
-      const nextError = requestError instanceof ApiError && requestError.status === 401 ? null : requestError.message;
+      const nextError = error instanceof ApiError && error.status === 401 ? null : error.message;
       setState((prev) => ({ ...prev, loading: false, error: nextError, data: nextError ? prev.data : null }));
       return null;
     }

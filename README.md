@@ -7,13 +7,15 @@ Owlgorithm is a single-service trend intelligence app with:
 - an account system backed by SQLite sessions and profile storage
 - an optional scraper pipeline that refreshes normalized trend data into cache files
 
-The release surface in this repo is intentionally limited to:
+The release surface in this repo is intentionally limited to live-backed flows:
 
 - Dashboard
 - Trend Radar
+- Night Watch
+- Creator Studio
 - Settings
 
-The remaining sidebar modules are available for demo flows, but they still use seeded/demo data rather than live production integrations.
+Routes for unfinished legacy modules redirect back to Dashboard until backend persistence and production integrations are implemented.
 
 ## Requirements
 
@@ -39,6 +41,24 @@ Important variables:
 - `OWLGORITHM_SMTP_USER`: optional SMTP username
 - `OWLGORITHM_SMTP_PASSWORD`: optional SMTP password
 - `OWLGORITHM_SMTP_SECURE`: set `true` for implicit TLS transports such as port `465`
+- `OWLGORITHM_MEDIA_API_KEY`: private media provider API key
+- `OWLGORITHM_MEDIA_API_BASE_URL`: private media provider API base URL
+- `OWLGORITHM_MEDIA_IMAGE_MODEL`: private image generation model identifier
+- `OWLGORITHM_MEDIA_VIDEO_MODEL`: private video generation model identifier
+- `OWLGORITHM_SOCIAL_API_KEY`: private social publishing provider API key
+- `OWLGORITHM_SOCIAL_PROFILE`: default social publishing profile/account identifier
+- `OWLGORITHM_SOCIAL_API_BASE_URL`: private social publishing provider API base URL
+- `OWLGORITHM_SOCIAL_AUTH_SCHEME`: optional API auth scheme, default `Apikey`
+- `OWLGORITHM_SOCIAL_TIMEZONE`: optional scheduler timezone, default `America/New_York`
+- `OWLGORITHM_SOCIAL_FACEBOOK_PAGE_ID`: optional Facebook page target for publishing
+- `OWLGORITHM_SOCIAL_LINKEDIN_PAGE_ID`: optional LinkedIn organization target for publishing
+- `OWLGORITHM_SOCIAL_PINTEREST_BOARD_ID`: required when posting to Pinterest
+- `OWLGORITHM_SOCIAL_REDDIT_SUBREDDIT`: required when posting to Reddit
+- `OWLGORITHM_SOCIAL_GOOGLE_BUSINESS_LOCATION_ID`: optional Google Business location target
+- `OWLGORITHM_SOCIAL_UPLOAD_ENDPOINT`: optional provider video endpoint path
+- `OWLGORITHM_SOCIAL_PHOTO_ENDPOINT`: optional provider photo endpoint path
+- `OWLGORITHM_SOCIAL_TEXT_ENDPOINT`: optional provider text endpoint path
+- `OWLGORITHM_SOCIAL_STATUS_ENDPOINT`: optional provider status endpoint path
 - `VITE_API_BASE_URL`: optional frontend override; leave blank for same-origin requests
 - `OWLGORITHM_DEV_API_TARGET`: optional Vite proxy target for local development
 
@@ -104,6 +124,7 @@ npm start
 
 The Node server serves:
 
+- `dist/` static assets
 - `/api/auth/session`
 - `/api/auth/signup`
 - `/api/auth/login`
@@ -116,14 +137,27 @@ The Node server serves:
 - `/api/account/preferences`
 - `/api/account/password`
 - `/api/account`
-- `dist/` static assets
 - `/api/trends`
 - `/api/opportunities`
 - `/api/scrape/status`
 - `/api/scrape/run`
+- `/api/media/readiness`
+- `/api/media/plan`
+- `/api/media/generate`
+- `/api/media/video/:requestId`
+- `/api/social/readiness`
+- `/api/social/accounts`
+- `/api/social/post`
+- `/api/social/schedule`
+- `/api/social/status/:requestId`
+
+Static demo JSON and seeded frontend datasets are not shipped. If the scraper cache is empty, the UI shows empty states until the backend writes live trend data.
+Media planning works without provider credentials. Image and video generation stays disabled until the private media provider configuration is present on the server.
 
 For deployment, use a persistent disk when `OWLGORITHM_DATA_DIR` points outside the repo so accounts and scraper cache survive restarts.
 Production signup and password recovery also require `OWLGORITHM_PUBLIC_URL`, `OWLGORITHM_EMAIL_FROM`, and working SMTP credentials.
+Production media generation also requires the private media provider credentials and model identifiers.
+Production social publishing supports TikTok, Instagram, YouTube, LinkedIn, Facebook, X, Threads, Pinterest, Reddit, Bluesky, and Google Business through the generic `OWLGORITHM_SOCIAL_*` settings. Keep vendor-specific identifiers server-side only.
 
 ## Verification
 

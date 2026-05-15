@@ -1,0 +1,1268 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import {
+  AlertCircle,
+  ArrowRight,
+  CalendarClock,
+  Camera,
+  CheckCircle2,
+  Clipboard,
+  Download,
+  Globe2,
+  Image as ImageIcon,
+  Play,
+  RefreshCw,
+  Send,
+  Share2,
+  Sparkles,
+  Square,
+  Video,
+  WandSparkles,
+} from 'lucide-react';
+
+import GlassCard from '@/components/shared/GlassCard';
+import PageWrapper from '@/components/shared/PageWrapper';
+import StatusBadge from '@/components/shared/StatusBadge';
+import PlatformIcon from '@/components/shared/PlatformIcon';
+import { apiRequest } from '@/lib/api';
+import { cn } from '@/lib/utils';
+import { useTrendsData } from '@/data/trends';
+
+const DEFAULT_PLATFORMS = [
+  { id: 'tiktok', label: 'TikTok', mobileLabel: 'TikTok', aspectRatio: '9:16', duration: 8 },
+  { id: 'instagram_reels', label: 'Instagram Reels', mobileLabel: 'Reels', aspectRatio: '9:16', duration: 8 },
+  { id: 'youtube_shorts', label: 'YouTube Shorts', mobileLabel: 'Shorts', aspectRatio: '9:16', duration: 8 },
+  { id: 'instagram_feed', label: 'Instagram Feed', mobileLabel: 'Feed', aspectRatio: '1:1', duration: 6 },
+  { id: 'linkedin', label: 'LinkedIn', mobileLabel: 'LinkedIn', aspectRatio: '4:3', duration: 6 },
+  { id: 'x', label: 'X', mobileLabel: 'X', aspectRatio: '16:9', duration: 6 },
+  { id: 'pinterest', label: 'Pinterest', mobileLabel: 'Pins', aspectRatio: '2:3', duration: 6 },
+];
+
+const DEFAULT_SOCIAL_PLATFORMS = [
+  { id: 'tiktok', label: 'TikTok', supports: ['video', 'image'], defaultFor: ['video', 'image'], targetConfigured: true },
+  { id: 'instagram', label: 'Instagram', supports: ['video', 'image'], defaultFor: ['video', 'image'], targetConfigured: true },
+  { id: 'youtube', label: 'YouTube', supports: ['video'], defaultFor: ['video'], targetConfigured: true },
+  { id: 'linkedin', label: 'LinkedIn', supports: ['video', 'image', 'text'], defaultFor: ['video', 'image', 'text'], targetConfigured: true },
+  { id: 'facebook', label: 'Facebook', supports: ['video', 'image', 'text'], defaultFor: ['video', 'image', 'text'], targetConfigured: true },
+  { id: 'x', label: 'X', supports: ['video', 'image', 'text'], defaultFor: ['video', 'image', 'text'], targetConfigured: true },
+  { id: 'threads', label: 'Threads', supports: ['video', 'image', 'text'], defaultFor: ['video', 'image', 'text'], targetConfigured: true },
+  { id: 'pinterest', label: 'Pinterest', supports: ['video', 'image'], defaultFor: ['video', 'image'], targetConfigured: false, requiredTargetEnv: 'OWLGORITHM_SOCIAL_PINTEREST_BOARD_ID' },
+  { id: 'reddit', label: 'Reddit', supports: ['video', 'image', 'text'], defaultFor: ['video', 'image', 'text'], targetConfigured: false, requiredTargetEnv: 'OWLGORITHM_SOCIAL_REDDIT_SUBREDDIT' },
+  { id: 'bluesky', label: 'Bluesky', supports: ['video', 'image', 'text'], defaultFor: ['video', 'image', 'text'], targetConfigured: true },
+  { id: 'google_business', label: 'Google Business', supports: ['video', 'image', 'text'], defaultFor: ['video', 'image', 'text'], targetConfigured: true },
+];
+
+const DEFAULT_STYLES = [
+  { id: 'ugc', label: 'authentic phone-shot UGC, natural light, clear subject, creator-led' },
+  { id: 'clean', label: 'clean editorial social creative, crisp contrast, strong visual hierarchy' },
+  { id: 'cinematic', label: 'cinematic lighting, premium campaign look, atmospheric but readable' },
+  { id: 'product', label: 'product-focused composition, practical demonstration, commerce-ready' },
+  { id: 'explainer', label: 'simple explainer visual, clear sequence, beginner-friendly framing' },
+];
+
+const GUIDED_STEPS = [
+  { prompt: "Say this: I wasn't gonna post this but...", seconds: 4 },
+  { prompt: "Now show what you're doing", seconds: 6 },
+  { prompt: 'React and end it', seconds: 4 },
+];
+
+const DEFAULT_FORM = {
+  type: 'video',
+  trendId: '',
+  customConcept: '',
+  platform: 'tiktok',
+  style: 'ugc',
+  audience: 'beginners who want practical, low-pressure social media ideas',
+  truthNote: '',
+  callToAction: 'follow for the next update',
+  sourceImageUrl: '',
+  duration: 8,
+  resolution: '480p',
+};
+
+function fallbackCopy(text) {
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', '');
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.select();
+  const ok = document.execCommand('copy');
+  document.body.removeChild(textarea);
+  if (!ok) throw new Error('Clipboard is not available in this browser.');
+}
+
+function downloadFile(filename, type, content) {
+  const blob = content instanceof Blob ? content : new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function icsDate(date) {
+  return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+}
+
+function supportedRecorderType() {
+  if (typeof window === 'undefined' || !window.MediaRecorder) return '';
+  const candidates = [
+    'video/webm;codecs=vp9,opus',
+    'video/webm;codecs=vp8,opus',
+    'video/webm',
+    'video/mp4',
+  ];
+  return candidates.find((type) => window.MediaRecorder.isTypeSupported(type)) || '';
+}
+
+function defaultSocialPlatformIds(platforms, assetType) {
+  return platforms
+    .filter((platform) => platform.defaultFor?.includes(assetType))
+    .filter((platform) => !platform.requiredTargetEnv || platform.targetConfigured)
+    .map((platform) => platform.id);
+}
+
+function Field({ label, children, hint }) {
+  return (
+    <label className="block space-y-2">
+      <span className="text-sm font-medium text-gray-300">{label}</span>
+      {children}
+      {hint ? <span className="block text-xs leading-relaxed text-gray-500">{hint}</span> : null}
+    </label>
+  );
+}
+
+function TextInput(props) {
+  return (
+    <input
+      {...props}
+      className={cn(
+        'w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm text-white outline-none transition-colors placeholder:text-gray-600 focus:border-blue-500/40',
+        props.className,
+      )}
+    />
+  );
+}
+
+function SelectInput(props) {
+  return (
+    <select
+      {...props}
+      className="w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm text-white outline-none transition-colors focus:border-blue-500/40"
+    />
+  );
+}
+
+function TextArea(props) {
+  return (
+    <textarea
+      {...props}
+      className={cn(
+        'min-h-[96px] w-full resize-y rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm text-white outline-none transition-colors placeholder:text-gray-600 focus:border-blue-500/40',
+        props.className,
+      )}
+    />
+  );
+}
+
+function ResultBlock({ title, text, onCopy }) {
+  if (!text) return null;
+
+  return (
+    <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <p className="text-sm font-semibold text-white">{title}</p>
+        <button
+          onClick={() => onCopy(text, title)}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs font-semibold text-gray-200 transition-colors hover:bg-white/[0.07]"
+        >
+          <Clipboard size={13} />
+          Copy
+        </button>
+      </div>
+      <pre className="whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-300">{text}</pre>
+    </div>
+  );
+}
+
+export default function MediaBuilder() {
+  const [searchParams] = useSearchParams();
+  const { trends, status: trendsStatus, error: trendsError } = useTrendsData(true);
+
+  const [form, setForm] = useState(DEFAULT_FORM);
+  const [readiness, setReadiness] = useState(null);
+  const [readinessError, setReadinessError] = useState(null);
+  const [socialReadiness, setSocialReadiness] = useState(null);
+  const [socialError, setSocialError] = useState(null);
+  const [socialBusy, setSocialBusy] = useState(null);
+  const [socialResult, setSocialResult] = useState(null);
+  const [socialPlatforms, setSocialPlatforms] = useState([]);
+  const [plan, setPlan] = useState(null);
+  const [result, setResult] = useState(null);
+  const [busy, setBusy] = useState(null);
+  const [notice, setNotice] = useState(null);
+  const [error, setError] = useState(null);
+
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [stream, setStream] = useState(null);
+  const [recording, setRecording] = useState(false);
+  const [countdown, setCountdown] = useState(null);
+  const [stepIndex, setStepIndex] = useState(0);
+  const [recordingUrl, setRecordingUrl] = useState(null);
+  const [recordingBlob, setRecordingBlob] = useState(null);
+  const [recorderMessage, setRecorderMessage] = useState(null);
+  const [recorderError, setRecorderError] = useState(null);
+  const [shareSupported, setShareSupported] = useState(false);
+
+  const videoRef = useRef(null);
+  const recorderRef = useRef(null);
+  const chunksRef = useRef([]);
+  const timersRef = useRef([]);
+  const streamRef = useRef(null);
+  const recordingUrlRef = useRef(null);
+
+  const platformOptions = readiness?.platforms?.length ? readiness.platforms : DEFAULT_PLATFORMS;
+  const styleOptions = readiness?.styles?.length ? readiness.styles : DEFAULT_STYLES;
+  const selectedTrend = useMemo(
+    () => trends.find((trend) => trend.id === form.trendId) || null,
+    [form.trendId, trends],
+  );
+  const selectedPlatform = platformOptions.find((platform) => platform.id === form.platform) || platformOptions[0];
+  const conceptReady = Boolean(selectedTrend || form.customConcept.trim());
+  const activePlan = result?.plan || plan;
+  const asset = result?.asset || null;
+  const socialContentType = asset?.type || form.type;
+  const socialPlatformOptions = useMemo(
+    () => (socialReadiness?.platforms?.length ? socialReadiness.platforms : DEFAULT_SOCIAL_PLATFORMS),
+    [socialReadiness],
+  );
+  const supportedSocialPlatforms = useMemo(
+    () => socialPlatformOptions.filter((platform) => platform.supports?.includes(socialContentType)),
+    [socialContentType, socialPlatformOptions],
+  );
+  const selectedSocialPlatformDetails = useMemo(
+    () => socialPlatformOptions.filter((platform) => socialPlatforms.includes(platform.id)),
+    [socialPlatformOptions, socialPlatforms],
+  );
+  const missingSocialTargets = selectedSocialPlatformDetails.filter((platform) => (
+    platform.requiredTargetEnv && !platform.targetConfigured
+  ));
+  const socialPublishBlocked = Boolean(
+    !socialReadiness?.configured
+      || !asset?.url
+      || !activePlan
+      || !socialPlatforms.length
+      || missingSocialTargets.length,
+  );
+  const socialStatusId = socialResult?.post?.requestId || socialResult?.post?.jobId || null;
+
+  useEffect(() => {
+    const trendId = searchParams.get('trend');
+    if (trendId) {
+      setForm((current) => ({ ...current, trendId, customConcept: '' }));
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadReadiness() {
+      try {
+        const data = await apiRequest('/api/media/readiness');
+        if (!cancelled) {
+          setReadiness(data);
+          setReadinessError(null);
+        }
+      } catch (loadError) {
+        if (!cancelled) {
+          setReadinessError(loadError.message);
+        }
+      }
+
+      try {
+        const data = await apiRequest('/api/social/readiness');
+        if (!cancelled) {
+          setSocialReadiness(data);
+          setSocialError(null);
+          setSocialPlatforms((current) => (
+            current.length ? current : defaultSocialPlatformIds(data.platforms || [], DEFAULT_FORM.type)
+          ));
+        }
+      } catch (loadError) {
+        if (!cancelled) {
+          setSocialError(loadError.message);
+          setSocialPlatforms((current) => (
+            current.length ? current : defaultSocialPlatformIds(DEFAULT_SOCIAL_PLATFORMS, DEFAULT_FORM.type)
+          ));
+        }
+      }
+    }
+
+    loadReadiness();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    setSocialPlatforms((current) => {
+      const supportedIds = supportedSocialPlatforms.map((platform) => platform.id);
+      const filtered = current.filter((id) => {
+        const platform = socialPlatformOptions.find((item) => item.id === id);
+        return supportedIds.includes(id) && (!platform?.requiredTargetEnv || platform.targetConfigured);
+      });
+      if (filtered.length) return filtered;
+      return defaultSocialPlatformIds(socialPlatformOptions, socialContentType);
+    });
+  }, [socialContentType, socialPlatformOptions, supportedSocialPlatforms]);
+
+  useEffect(() => {
+    if (videoRef.current && stream) {
+      videoRef.current.srcObject = stream;
+    }
+  }, [stream]);
+
+  useEffect(() => {
+    if (!recordingBlob || typeof navigator === 'undefined' || typeof File === 'undefined') {
+      setShareSupported(false);
+      return;
+    }
+
+    const extension = recordingBlob.type.includes('mp4') ? 'mp4' : 'webm';
+    const file = new File([recordingBlob], `owlgorithm-recording.${extension}`, { type: recordingBlob.type });
+    setShareSupported(Boolean(navigator.canShare?.({ files: [file] })));
+  }, [recordingBlob]);
+
+  useEffect(() => () => {
+    timersRef.current.forEach((timer) => window.clearTimeout(timer));
+    if (recorderRef.current?.state === 'recording') {
+      recorderRef.current.stop();
+    }
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    if (recordingUrlRef.current) {
+      URL.revokeObjectURL(recordingUrlRef.current);
+    }
+  }, []);
+
+  function updateForm(key, value) {
+    setForm((current) => {
+      const next = { ...current, [key]: value };
+      if (key === 'platform') {
+        const platform = platformOptions.find((item) => item.id === value);
+        if (platform) {
+          next.duration = platform.duration;
+        }
+      }
+      if (key === 'trendId' && value) {
+        next.customConcept = '';
+      }
+      return next;
+    });
+    setNotice(null);
+    setError(null);
+  }
+
+  function buildPayload() {
+    return {
+      ...form,
+      trendId: form.trendId || undefined,
+      customConcept: form.trendId ? '' : form.customConcept,
+      duration: Number(form.duration),
+    };
+  }
+
+  function captionWithHashtags() {
+    const caption = activePlan?.caption || '';
+    const hashtags = (activePlan?.hashtags || []).join(' ');
+    return [caption, hashtags].filter(Boolean).join('\n\n');
+  }
+
+  function toggleSocialPlatform(platformId) {
+    const platform = socialPlatformOptions.find((item) => item.id === platformId);
+    if (!platform?.supports?.includes(socialContentType)) return;
+    if (platform.requiredTargetEnv && !platform.targetConfigured) return;
+
+    setSocialPlatforms((current) => (
+      current.includes(platformId)
+        ? current.filter((id) => id !== platformId)
+        : [...current, platformId]
+    ));
+    setSocialError(null);
+    setSocialResult(null);
+  }
+
+  async function copyText(text, label) {
+    setNotice(null);
+    setError(null);
+
+    try {
+      if (navigator.clipboard?.writeText && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        fallbackCopy(text);
+      }
+      setNotice(`${label} copied.`);
+    } catch (copyError) {
+      setError(copyError.message);
+    }
+  }
+
+  async function handlePlan() {
+    if (!conceptReady) {
+      setError('Choose a live trend or enter a custom concept.');
+      return;
+    }
+
+    setBusy('plan');
+    setError(null);
+    setNotice(null);
+
+    try {
+      const data = await apiRequest('/api/media/plan', {
+        method: 'POST',
+        json: buildPayload(),
+      });
+      setPlan(data.plan);
+      setResult(null);
+      setNotice('Media plan created from the backend.');
+    } catch (planError) {
+      setError(planError.message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleGenerate() {
+    if (!conceptReady) {
+      setError('Choose a live trend or enter a custom concept.');
+      return;
+    }
+
+    if (!readiness?.configured) {
+      setError('Media generation is disabled until the private media provider credentials are configured on the backend.');
+      return;
+    }
+
+    setBusy('generate');
+    setError(null);
+    setNotice(null);
+
+    try {
+      const data = await apiRequest('/api/media/generate', {
+        method: 'POST',
+        json: buildPayload(),
+      });
+      setPlan(data.plan);
+      setResult(data);
+      setNotice(data.asset?.status === 'queued'
+        ? 'Video request queued. Use Check video status until the media asset is ready.'
+        : 'Media asset generated.');
+    } catch (generateError) {
+      setError(generateError.message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handlePollVideo() {
+    if (!asset?.requestId) return;
+
+    setBusy('poll');
+    setError(null);
+    setNotice(null);
+
+    try {
+      const data = await apiRequest(`/api/media/video/${encodeURIComponent(asset.requestId)}`);
+      const nextAsset = {
+        ...asset,
+        status: data.video?.status === 'done' ? 'complete' : data.video?.status || asset.status,
+        url: data.video?.url || asset.url || null,
+      };
+      setResult((current) => ({ ...current, asset: nextAsset, video: data.video }));
+      setNotice(nextAsset.url ? 'Video is ready.' : `Video status: ${nextAsset.status}.`);
+    } catch (pollError) {
+      setError(pollError.message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleSocialPublish(schedule = false) {
+    if (!socialReadiness?.configured) {
+      setSocialError('Social publishing needs private social provider credentials on the backend.');
+      return;
+    }
+    if (!asset?.url) {
+      setSocialError('Generate an image or video before publishing.');
+      return;
+    }
+    if (!socialPlatforms.length) {
+      setSocialError('Choose at least one supported social platform.');
+      return;
+    }
+    if (missingSocialTargets.length) {
+      setSocialError(`Selected platforms need backend targets: ${missingSocialTargets.map((platform) => platform.requiredTargetEnv).join(', ')}.`);
+      return;
+    }
+
+    setSocialBusy(schedule ? 'schedule' : 'post');
+    setSocialError(null);
+    setSocialResult(null);
+
+    try {
+      const scheduledDate = schedule ? new Date(Date.now() + 60 * 60 * 1000).toISOString() : undefined;
+      const data = await apiRequest(schedule ? '/api/social/schedule' : '/api/social/post', {
+        method: 'POST',
+        json: {
+          assetType: socialContentType,
+          mediaUrl: asset.url,
+          title: activePlan?.trendName || selectedTrend?.name || 'Owlgorithm post',
+          caption: captionWithHashtags(),
+          description: activePlan?.caption || captionWithHashtags(),
+          platforms: socialPlatforms,
+          scheduledDate,
+        },
+      });
+      setSocialResult(data);
+    } catch (publishError) {
+      setSocialError(publishError.message);
+    } finally {
+      setSocialBusy(null);
+    }
+  }
+
+  async function handleSocialStatus() {
+    const statusId = socialResult?.post?.requestId || socialResult?.post?.jobId;
+    if (!statusId) {
+      setSocialError('No social request ID is available yet.');
+      return;
+    }
+
+    setSocialBusy('status');
+    setSocialError(null);
+
+    try {
+      const data = await apiRequest(`/api/social/status/${encodeURIComponent(statusId)}`);
+      setSocialResult((current) => ({ ...current, status: data.status }));
+    } catch (statusError) {
+      setSocialError(statusError.message);
+    } finally {
+      setSocialBusy(null);
+    }
+  }
+
+  function clearTimers() {
+    timersRef.current.forEach((timer) => window.clearTimeout(timer));
+    timersRef.current = [];
+  }
+
+  async function startCamera() {
+    setRecorderError(null);
+    setRecorderMessage(null);
+
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+      setRecorderError('Camera recording is not supported in this browser.');
+      return;
+    }
+
+    try {
+      const nextStream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: { facingMode: 'user', width: { ideal: 1080 }, height: { ideal: 1920 } },
+      });
+      streamRef.current = nextStream;
+      setStream(nextStream);
+      setCameraOpen(true);
+      setStepIndex(0);
+      setRecorderMessage('Camera is ready.');
+    } catch (cameraError) {
+      setRecorderError(cameraError.message);
+    }
+  }
+
+  function stopRecording() {
+    clearTimers();
+    if (recorderRef.current && recorderRef.current.state === 'recording') {
+      recorderRef.current.stop();
+    }
+    setCountdown(null);
+  }
+
+  function stopCamera() {
+    stopRecording();
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    setStream(null);
+    setCameraOpen(false);
+    setRecording(false);
+    setCountdown(null);
+    setRecorderMessage('Camera closed.');
+  }
+
+  async function runCountdown() {
+    for (let seconds = 3; seconds > 0; seconds -= 1) {
+      setCountdown(seconds);
+      await new Promise((resolve) => {
+        timersRef.current.push(window.setTimeout(resolve, 1000));
+      });
+    }
+    setCountdown(null);
+  }
+
+  async function startGuidedRecording() {
+    if (!streamRef.current) {
+      await startCamera();
+      return;
+    }
+
+    const mimeType = supportedRecorderType();
+    chunksRef.current = [];
+    clearTimers();
+    setRecorderError(null);
+    setRecorderMessage(null);
+    setRecordingBlob(null);
+    if (recordingUrlRef.current) {
+      URL.revokeObjectURL(recordingUrlRef.current);
+      recordingUrlRef.current = null;
+      setRecordingUrl(null);
+    }
+
+    try {
+      const recorder = new MediaRecorder(streamRef.current, mimeType ? { mimeType } : undefined);
+      recorderRef.current = recorder;
+      recorder.ondataavailable = (event) => {
+        if (event.data?.size) {
+          chunksRef.current.push(event.data);
+        }
+      };
+      recorder.onstop = () => {
+        const blobType = mimeType || chunksRef.current[0]?.type || 'video/webm';
+        const blob = new Blob(chunksRef.current, { type: blobType });
+        const url = URL.createObjectURL(blob);
+        recordingUrlRef.current = url;
+        setRecordingBlob(blob);
+        setRecordingUrl(url);
+        setRecording(false);
+        setCountdown(null);
+        setRecorderMessage('Guided recording is ready.');
+      };
+
+      await runCountdown();
+      setStepIndex(0);
+      recorder.start();
+      setRecording(true);
+      setRecorderMessage('Recording guided steps.');
+
+      let elapsed = 0;
+      GUIDED_STEPS.slice(0, -1).forEach((step, index) => {
+        elapsed += step.seconds;
+        timersRef.current.push(window.setTimeout(() => {
+          setStepIndex(index + 1);
+        }, elapsed * 1000));
+      });
+
+      const total = GUIDED_STEPS.reduce((sum, step) => sum + step.seconds, 0);
+      timersRef.current.push(window.setTimeout(stopRecording, total * 1000));
+    } catch (recordError) {
+      setRecording(false);
+      setRecorderError(recordError.message);
+    }
+  }
+
+  function handleDownloadRecording() {
+    if (!recordingBlob) return;
+    const extension = recordingBlob.type.includes('mp4') ? 'mp4' : 'webm';
+    downloadFile(`owlgorithm-guided-recording.${extension}`, recordingBlob.type, recordingBlob);
+    setRecorderMessage('Recording downloaded.');
+  }
+
+  async function handleShareRecording() {
+    if (!recordingBlob || !shareSupported) return;
+    const extension = recordingBlob.type.includes('mp4') ? 'mp4' : 'webm';
+    const file = new File([recordingBlob], `owlgorithm-recording.${extension}`, { type: recordingBlob.type });
+
+    try {
+      await navigator.share({
+        files: [file],
+        title: 'Owlgorithm guided recording',
+        text: activePlan?.caption || 'Guided recording from Owlgorithm.',
+      });
+      setRecorderMessage('Recording shared.');
+    } catch (shareError) {
+      if (shareError.name !== 'AbortError') {
+        setRecorderError(shareError.message);
+      }
+    }
+  }
+
+  function handleBestTimeReminder() {
+    const start = new Date(Date.now() + 60 * 60 * 1000);
+    const end = new Date(start.getTime() + 15 * 60 * 1000);
+    const summary = `Post ${activePlan?.trendName || selectedTrend?.name || form.customConcept || 'Owlgorithm content'}`;
+    const content = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//Owlgorithm//Creator Studio//EN',
+      'BEGIN:VEVENT',
+      `UID:${Date.now()}@owlgorithm`,
+      `DTSTAMP:${icsDate(new Date())}`,
+      `DTSTART:${icsDate(start)}`,
+      `DTEND:${icsDate(end)}`,
+      `SUMMARY:${summary}`,
+      'DESCRIPTION:Owlgorithm best-time posting reminder.',
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ].join('\r\n');
+    downloadFile('owlgorithm-best-time.ics', 'text/calendar;charset=utf-8', content);
+    setNotice('Best-time reminder downloaded.');
+  }
+
+  return (
+    <PageWrapper className="space-y-6">
+      <GlassCard hover={false} accent="purple">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+          <div className="min-w-0">
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <StatusBadge status={readiness?.configured ? 'active' : 'disabled'} />
+              <StatusBadge status={socialReadiness?.configured ? 'active' : 'disabled'} />
+              <StatusBadge status={trendsStatus === 'ready' ? 'active' : trendsStatus} />
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04] text-purple-300">
+                <WandSparkles size={21} />
+              </div>
+              <div className="min-w-0">
+                <h1 className="text-2xl font-bold text-white sm:text-3xl">Creator Studio</h1>
+                <p className="mt-1 max-w-2xl text-sm leading-relaxed text-gray-400">
+                  Build image and video assets from live Trend Radar signals, then publish them across connected social channels.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <Link
+            to="/night-watch"
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/[0.07]"
+          >
+            Open Night Watch
+            <ArrowRight size={15} />
+          </Link>
+        </div>
+
+        {!readiness?.configured ? (
+          <div className="mt-5 rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm leading-relaxed text-amber-100">
+            Image and video generation needs private media provider credentials on the backend. Planning, captioning, guided recording, and exports still work.
+          </div>
+        ) : null}
+        {!socialReadiness?.configured ? (
+          <div className="mt-3 rounded-xl border border-blue-500/20 bg-blue-500/10 px-4 py-3 text-sm leading-relaxed text-blue-100">
+            Social publishing needs private backend credentials before Post now and Post at best time are enabled.
+          </div>
+        ) : null}
+        {readinessError || trendsError || error || socialError || notice ? (
+          <div className={cn(
+            'mt-5 rounded-xl border px-4 py-3 text-sm',
+            readinessError || trendsError || error || socialError
+              ? 'border-red-500/20 bg-red-500/10 text-red-100'
+              : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-100',
+          )}>
+            {readinessError || trendsError || error || socialError || notice}
+          </div>
+        ) : null}
+      </GlassCard>
+
+      <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
+        <GlassCard hover={false} accent="blue" className="min-w-0 space-y-5">
+          <div>
+            <h2 className="text-lg font-semibold text-white">Build Input</h2>
+            <p className="mt-1 text-sm text-gray-500">Choose a trend or enter a user-owned concept.</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { value: 'video', label: 'Video', icon: Video },
+              { value: 'image', label: 'Image', icon: ImageIcon },
+            ].map((item) => {
+              const Icon = item.icon;
+              const active = form.type === item.value;
+              return (
+                <button
+                  key={item.value}
+                  onClick={() => updateForm('type', item.value)}
+                  className={cn(
+                    'flex items-center justify-center gap-2 rounded-xl border px-3 py-3 text-sm font-semibold transition-colors',
+                    active ? 'border-blue-500/40 bg-blue-500/15 text-blue-100' : 'border-white/10 bg-white/[0.03] text-gray-300 hover:bg-white/[0.06]',
+                  )}
+                >
+                  <Icon size={16} />
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <Field label="Live trend">
+            <SelectInput
+              value={form.trendId}
+              onChange={(event) => updateForm('trendId', event.target.value)}
+            >
+              <option value="" className="bg-gray-950">Use custom concept</option>
+              {trends.map((trend) => (
+                <option key={trend.id} value={trend.id} className="bg-gray-950">
+                  {trend.name}
+                </option>
+              ))}
+            </SelectInput>
+          </Field>
+
+          {!form.trendId ? (
+            <Field label="Custom concept" hint="Use this only when the idea came from the user or a source outside the current trend cache.">
+              <TextInput
+                value={form.customConcept}
+                onChange={(event) => updateForm('customConcept', event.target.value)}
+                placeholder="Example: beginner posting confidence"
+              />
+            </Field>
+          ) : null}
+
+          {selectedTrend ? (
+            <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <StatusBadge status={selectedTrend.saturation || 'draft'} />
+                <span className="rounded-full bg-white/[0.05] px-2.5 py-1 text-xs font-semibold text-gray-300">
+                  Opportunity {selectedTrend.opportunityScore ?? 0}
+                </span>
+              </div>
+              <p className="text-sm font-semibold text-white">{selectedTrend.name}</p>
+              <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-gray-400">{selectedTrend.description || selectedTrend.aiInsight}</p>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {(selectedTrend.platforms || []).slice(0, 5).map((platform) => (
+                  <PlatformIcon key={platform} platform={platform} size={20} />
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Platform">
+              <SelectInput value={form.platform} onChange={(event) => updateForm('platform', event.target.value)}>
+                {platformOptions.map((platform) => (
+                  <option key={platform.id} value={platform.id} className="bg-gray-950">
+                    {platform.label}
+                  </option>
+                ))}
+              </SelectInput>
+            </Field>
+            <Field label="Style">
+              <SelectInput value={form.style} onChange={(event) => updateForm('style', event.target.value)}>
+                {styleOptions.map((style) => (
+                  <option key={style.id} value={style.id} className="bg-gray-950">
+                    {style.id}
+                  </option>
+                ))}
+              </SelectInput>
+            </Field>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Duration">
+              <TextInput
+                type="number"
+                min="1"
+                max="15"
+                value={form.duration}
+                onChange={(event) => updateForm('duration', event.target.value)}
+              />
+            </Field>
+            <Field label="Resolution">
+              <SelectInput value={form.resolution} onChange={(event) => updateForm('resolution', event.target.value)}>
+                <option value="480p" className="bg-gray-950">480p</option>
+                <option value="720p" className="bg-gray-950">720p</option>
+              </SelectInput>
+            </Field>
+          </div>
+
+          {form.type === 'video' ? (
+            <Field label="Image-to-video source URL" hint="Optional. Must be a public http(s) image URL if used.">
+              <TextInput
+                value={form.sourceImageUrl}
+                onChange={(event) => updateForm('sourceImageUrl', event.target.value)}
+                placeholder="https://example.com/source-frame.jpg"
+              />
+            </Field>
+          ) : null}
+
+          <Field label="Audience">
+            <TextInput
+              value={form.audience}
+              onChange={(event) => updateForm('audience', event.target.value)}
+            />
+          </Field>
+
+          <Field label="Truth guardrail" hint="Use this for Truth Radar notes, verified constraints, or claims to avoid.">
+            <TextArea
+              value={form.truthNote}
+              onChange={(event) => updateForm('truthNote', event.target.value)}
+              placeholder="Example: Do not claim guaranteed income or platform-specific results."
+            />
+          </Field>
+
+          <Field label="Call to action">
+            <TextInput
+              value={form.callToAction}
+              onChange={(event) => updateForm('callToAction', event.target.value)}
+            />
+          </Field>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <button
+              onClick={handlePlan}
+              disabled={!conceptReady || busy === 'plan'}
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Sparkles size={16} />
+              {busy === 'plan' ? 'Planning...' : 'Build plan'}
+            </button>
+            <button
+              onClick={handleGenerate}
+              disabled={!conceptReady || busy === 'generate' || !readiness?.configured}
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-blue-500/30 bg-blue-500/15 px-4 py-2.5 text-sm font-semibold text-blue-100 transition-colors hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <WandSparkles size={16} />
+              {busy === 'generate' ? 'Generating...' : `Generate ${form.type}`}
+            </button>
+          </div>
+        </GlassCard>
+
+        <div className="min-w-0 space-y-6">
+          <GlassCard hover={false} accent="purple" className="space-y-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-white">Plan and Output</h2>
+                <p className="mt-1 text-sm text-gray-500">
+                  {selectedPlatform?.label || 'Selected platform'} output uses a {selectedPlatform?.aspectRatio || '9:16'} format.
+                </p>
+              </div>
+              {activePlan ? <StatusBadge status={asset?.status === 'complete' ? 'published' : asset?.status || 'draft'} /> : null}
+            </div>
+
+            {!activePlan ? (
+              <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-8 text-center">
+                <WandSparkles size={22} className="mx-auto text-gray-500" />
+                <p className="mt-3 text-sm font-semibold text-white">No plan yet</p>
+                <p className="mx-auto mt-2 max-w-md text-sm text-gray-500">
+                  Build a plan first, then generate an image or video when backend media generation is configured.
+                </p>
+              </div>
+            ) : (
+              <>
+                <ResultBlock title="Prompt" text={activePlan.prompt} onCopy={copyText} />
+                <ResultBlock title="Caption" text={activePlan.caption} onCopy={copyText} />
+                <ResultBlock title="Hashtags" text={(activePlan.hashtags || []).join(' ')} onCopy={copyText} />
+
+                {asset ? (
+                  <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
+                    <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-white">Generated asset</p>
+                        <p className="mt-1 text-xs text-gray-500">Created by the configured media engine.</p>
+                      </div>
+                      {asset.url ? (
+                        <a
+                          href={asset.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-white/[0.07]"
+                        >
+                          Open asset
+                          <ArrowRight size={14} />
+                        </a>
+                      ) : asset.requestId ? (
+                        <button
+                          onClick={handlePollVideo}
+                          disabled={busy === 'poll'}
+                          className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <RefreshCw size={14} className={busy === 'poll' ? 'animate-spin' : ''} />
+                          Check video status
+                        </button>
+                      ) : null}
+                    </div>
+
+                    {asset.url && asset.type === 'image' ? (
+                      <img
+                        src={asset.url}
+                        alt={activePlan.trendName}
+                        className="max-h-[520px] w-full rounded-xl border border-white/[0.08] object-contain"
+                      />
+                    ) : null}
+                    {asset.url && asset.type === 'video' ? (
+                      <video
+                        controls
+                        playsInline
+                        src={asset.url}
+                        className="max-h-[520px] w-full rounded-xl border border-white/[0.08] bg-black"
+                      />
+                    ) : null}
+                    {!asset.url && asset.requestId ? (
+                      <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+                        Request ID: <span className="font-mono">{asset.requestId}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <button
+                    onClick={handleBestTimeReminder}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/[0.07]"
+                  >
+                    <CalendarClock size={16} />
+                    Save best-time reminder
+                  </button>
+                  <Link
+                    to="/trends"
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/[0.07]"
+                  >
+                    Return to Trend Radar
+                    <ArrowRight size={15} />
+                  </Link>
+                </div>
+              </>
+            )}
+          </GlassCard>
+
+          <GlassCard hover={false} accent="blue" className="space-y-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
+                  <Globe2 size={18} className="text-blue-300" />
+                  Post Everywhere
+                </h2>
+                <p className="mt-1 text-sm text-gray-500">
+                  Publish the generated {socialContentType} to every connected channel that supports it.
+                </p>
+              </div>
+              <StatusBadge status={socialReadiness?.configured ? 'active' : 'disabled'} />
+            </div>
+
+            <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
+              <div className="mb-3 grid gap-2 sm:grid-cols-3">
+                {[
+                  { label: 'Opportunity', value: selectedTrend?.opportunityScore >= 70 ? 'Strong' : 'Good' },
+                  { label: 'Trend', value: 'Going up' },
+                  { label: 'Best time', value: 'Within 1 hour' },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-lg border border-white/[0.08] bg-black/20 px-3 py-2">
+                    <p className="text-[11px] uppercase tracking-[0.12em] text-gray-500">{item.label}</p>
+                    <p className="mt-1 text-sm font-semibold text-white">{item.value}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {socialPlatformOptions.map((platform) => {
+                  const supported = platform.supports?.includes(socialContentType);
+                  const targetReady = !platform.requiredTargetEnv || platform.targetConfigured;
+                  const checked = socialPlatforms.includes(platform.id);
+                  const disabled = !supported || !targetReady;
+                  return (
+                    <button
+                      key={platform.id}
+                      onClick={() => toggleSocialPlatform(platform.id)}
+                      disabled={disabled}
+                      className={cn(
+                        'flex min-h-[54px] items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left transition-colors',
+                        checked
+                          ? 'border-blue-500/40 bg-blue-500/15 text-blue-100'
+                          : 'border-white/[0.08] bg-white/[0.03] text-gray-300 hover:bg-white/[0.06]',
+                        disabled && 'cursor-not-allowed opacity-45 hover:bg-white/[0.03]',
+                      )}
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-semibold">{platform.label}</span>
+                        <span className="mt-0.5 block truncate text-[11px] text-gray-500">
+                          {!supported ? `No ${socialContentType} support` : !targetReady ? `Needs ${platform.requiredTargetEnv}` : platform.supports.join(', ')}
+                        </span>
+                      </span>
+                      <span className={cn(
+                        'h-4 w-4 shrink-0 rounded-full border',
+                        checked ? 'border-blue-300 bg-blue-400' : 'border-white/20',
+                      )} />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              <button
+                onClick={() => handleSocialPublish(false)}
+                disabled={socialPublishBlocked || socialBusy === 'post'}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-blue-500/30 bg-blue-500/15 px-4 py-2.5 text-sm font-semibold text-blue-100 transition-colors hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Send size={16} />
+                {socialBusy === 'post' ? 'Posting...' : 'Post now'}
+              </button>
+              <button
+                onClick={() => handleSocialPublish(true)}
+                disabled={socialPublishBlocked || socialBusy === 'schedule'}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <CalendarClock size={16} />
+                {socialBusy === 'schedule' ? 'Scheduling...' : 'Post at best time'}
+              </button>
+              <button
+                onClick={handleSocialStatus}
+                disabled={!socialStatusId || socialBusy === 'status'}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <RefreshCw size={16} className={socialBusy === 'status' ? 'animate-spin' : ''} />
+                Check status
+              </button>
+            </div>
+
+            {!asset?.url ? (
+              <p className="text-xs leading-relaxed text-gray-500">Generate an image or video before publishing.</p>
+            ) : missingSocialTargets.length ? (
+              <p className="text-xs leading-relaxed text-amber-200">
+                Selected platforms need backend target settings: {missingSocialTargets.map((platform) => platform.requiredTargetEnv).join(', ')}.
+              </p>
+            ) : !socialReadiness?.configured ? (
+              <p className="text-xs leading-relaxed text-gray-500">Publishing stays disabled until the private social provider settings are configured server-side.</p>
+            ) : null}
+
+            {socialResult?.post ? (
+              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+                {socialResult.post.status === 'scheduled' ? 'Scheduled' : 'Submitted'} to {socialResult.post.platforms?.length || socialPlatforms.length} channel(s).
+                {socialStatusId ? <span className="ml-1 font-mono text-xs">ID: {socialStatusId}</span> : null}
+              </div>
+            ) : null}
+
+            {socialResult?.status ? (
+              <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 text-sm text-gray-300">
+                Delivery status: <span className="font-semibold text-white">{socialResult.status.status}</span>
+              </div>
+            ) : null}
+          </GlassCard>
+
+          <GlassCard hover={false} accent="emerald" className="space-y-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
+                  <Camera size={18} className="text-emerald-300" />
+                  Guided Recording
+                </h2>
+                <p className="mt-1 text-sm text-gray-500">Record the beginner follow-along flow with real camera capture.</p>
+              </div>
+              {recording ? <StatusBadge status="running" /> : recordingUrl ? <StatusBadge status="completed" /> : null}
+            </div>
+
+            <div className="overflow-hidden rounded-xl border border-white/[0.08] bg-black/40">
+              {cameraOpen ? (
+                <div className="relative aspect-[9/16] max-h-[560px] w-full bg-black sm:aspect-video">
+                  <video ref={videoRef} autoPlay playsInline muted className="h-full w-full object-cover" />
+                  <div className="absolute inset-x-3 top-3 rounded-xl border border-white/10 bg-black/60 px-4 py-3 backdrop-blur">
+                    <p className="text-xs uppercase tracking-[0.18em] text-emerald-300">Step {stepIndex + 1} of {GUIDED_STEPS.length}</p>
+                    <p className="mt-1 text-base font-semibold text-white">{GUIDED_STEPS[stepIndex]?.prompt}</p>
+                  </div>
+                  {countdown ? (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/40 text-7xl font-bold text-white">
+                      {countdown}
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="flex min-h-[260px] flex-col items-center justify-center px-5 py-8 text-center">
+                  <Camera size={28} className="text-gray-500" />
+                  <p className="mt-3 text-sm font-semibold text-white">Camera is closed</p>
+                  <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-gray-500">
+                    Open camera to record the three prompt sequence locally in the browser.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              <button
+                onClick={cameraOpen ? startGuidedRecording : startCamera}
+                disabled={recording || countdown}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/15 px-4 py-2.5 text-sm font-semibold text-emerald-100 transition-colors hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Play size={16} />
+                {cameraOpen ? 'Start guided recording' : 'Open camera'}
+              </button>
+              <button
+                onClick={stopRecording}
+                disabled={!recording}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Square size={16} />
+                Stop recording
+              </button>
+              <button
+                onClick={stopCamera}
+                disabled={!cameraOpen}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Camera size={16} />
+                Close camera
+              </button>
+            </div>
+
+            {recorderError || recorderMessage ? (
+              <div className={cn(
+                'rounded-xl border px-4 py-3 text-sm',
+                recorderError ? 'border-red-500/20 bg-red-500/10 text-red-100' : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-100',
+              )}>
+                {recorderError || recorderMessage}
+              </div>
+            ) : null}
+
+            {recordingUrl ? (
+              <div className="space-y-3 rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
+                <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                  <CheckCircle2 size={16} className="text-emerald-300" />
+                  Recording ready
+                </div>
+                <video controls playsInline src={recordingUrl} className="max-h-[520px] w-full rounded-xl border border-white/[0.08] bg-black" />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <button
+                    onClick={handleDownloadRecording}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/[0.07]"
+                  >
+                    <Download size={16} />
+                    Download recording
+                  </button>
+                  <button
+                    onClick={handleShareRecording}
+                    disabled={!shareSupported}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Share2 size={16} />
+                    Share recording
+                  </button>
+                </div>
+                {!shareSupported ? (
+                  <p className="text-xs text-gray-500">File sharing is unavailable in this browser, so use Download recording.</p>
+                ) : null}
+              </div>
+            ) : null}
+          </GlassCard>
+        </div>
+      </div>
+
+      <GlassCard hover={false} accent="amber">
+        <div className="flex gap-3">
+          <AlertCircle size={18} className="mt-0.5 shrink-0 text-amber-300" />
+          <p className="text-sm leading-relaxed text-gray-400">
+            Publishing is provider-backed and stays disabled unless the backend has private social credentials and required posting targets. The app does not expose provider details to the browser.
+          </p>
+        </div>
+      </GlassCard>
+    </PageWrapper>
+  );
+}

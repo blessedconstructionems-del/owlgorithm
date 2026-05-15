@@ -13,6 +13,8 @@ dist-ssr
 *.local
 server/data/*
 !server/data/.gitkeep
+scraper/cache/*.json
+public/demo/*.json
 
 # Editor directories and files
 .vscode/*

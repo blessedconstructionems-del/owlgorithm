@@ -1,4 +1,4 @@
-import { createElement, useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LineChart,
@@ -11,9 +11,6 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import {
-  Bookmark,
-  Bell,
-  Link2,
   X,
   Lightbulb,
   Star,
@@ -63,15 +60,6 @@ function saturationProgressColor(sat) {
   if (s === 'peak') return '#F59E0B';
   if (s === 'declining') return '#EF4444';
   return '#6B7280';
-}
-
-function stablePlatformActivity(seed) {
-  let hash = 0;
-  for (let i = 0; i < seed.length; i += 1) {
-    hash = seed.charCodeAt(i) + ((hash << 5) - hash);
-  }
-
-  return 40 + (Math.abs(hash) % 61);
 }
 
 // ---------------------------------------------------------------------------
@@ -194,8 +182,11 @@ function TrendDetailModal({ trend, allTrends, onClose }) {
   // Platform breakdown for bar chart
   const platformBarData = trend.platforms.map((p) => ({
     name: p,
-    activity: stablePlatformActivity(`${trend.id}:${p}`),
-  }));
+    activity: trend.metrics?.platforms?.[p]?.engagement
+      || trend.metrics?.platforms?.[p]?.views
+      || trend.metrics?.platforms?.[p]?.posts
+      || 0,
+  })).filter((item) => item.activity > 0);
 
   // Related trends lookup
   const relatedTrends = allTrends.filter((t) =>
@@ -265,34 +256,35 @@ function TrendDetailModal({ trend, allTrends, onClose }) {
           </div>
         </GlassCard>
 
-        {/* Platform breakdown */}
-        <GlassCard accent="purple" className="p-4">
-          <h3 className="text-sm font-semibold text-gray-300 mb-2">
-            Platform Activity
-          </h3>
-          <div className="h-[120px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={platformBarData} layout="vertical">
-                <XAxis type="number" hide />
-                <YAxis
-                  type="category"
-                  dataKey="name"
-                  tick={{ fill: '#9CA3AF', fontSize: 11 }}
-                  axisLine={false}
-                  tickLine={false}
-                  width={80}
-                />
-                <Tooltip content={<PlatformBarTooltip />} cursor={false} />
-                <Bar
-                  dataKey="activity"
-                  radius={[0, 4, 4, 0]}
-                  fill="#3B82F6"
-                  barSize={14}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </GlassCard>
+        {platformBarData.length > 0 ? (
+          <GlassCard accent="purple" className="p-4">
+            <h3 className="text-sm font-semibold text-gray-300 mb-2">
+              Platform Activity
+            </h3>
+            <div className="h-[120px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={platformBarData} layout="vertical">
+                  <XAxis type="number" hide />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    tick={{ fill: '#9CA3AF', fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={80}
+                  />
+                  <Tooltip content={<PlatformBarTooltip />} cursor={false} />
+                  <Bar
+                    dataKey="activity"
+                    radius={[0, 4, 4, 0]}
+                    fill="#3B82F6"
+                    barSize={14}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </GlassCard>
+        ) : null}
 
         {/* Smart Insight */}
         <div className="rounded-xl bg-purple-500/10 border border-purple-500/20 p-4">
@@ -345,11 +337,6 @@ function TrendDetailModal({ trend, allTrends, onClose }) {
             <p className="text-xl font-bold text-white">{trend.opportunityScore}</p>
           </div>
         </div>
-
-        {/* CTA */}
-        <button className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold text-sm hover:from-blue-600 hover:to-purple-600 transition-all">
-          Schedule Post Using This Trend
-        </button>
       </motion.div>
     </motion.div>
   );
@@ -385,7 +372,7 @@ const cardVariants = {
 // Main Page
 // ---------------------------------------------------------------------------
 export default function TrendRadar() {
-  const { trends: allTrends } = useTrendsData(true);
+  const { trends: allTrends, status, error } = useTrendsData(true);
   // ---- Filter state ----
   const [selectedPlatforms, setSelectedPlatforms] = useState(['All']);
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -567,8 +554,16 @@ export default function TrendRadar() {
         <motion.div variants={stagger.item}>
           {filteredTrends.length === 0 ? (
             <div className="text-center py-16 text-gray-500">
-              <p className="text-lg mb-1">No trends match your filters</p>
-              <p className="text-sm">Try broadening your search criteria</p>
+              <p className="text-lg mb-1">
+                {allTrends.length === 0 ? 'No live trends loaded' : 'No trends match your filters'}
+              </p>
+              <p className="text-sm">
+                {error
+                  ? error
+                  : allTrends.length === 0 && status !== 'loading'
+                    ? 'Run the backend scraper or wait for the next scheduled refresh.'
+                    : 'Try broadening your search criteria.'}
+              </p>
             </div>
           ) : (
             <motion.div
@@ -669,34 +664,10 @@ export default function TrendRadar() {
                       </div>
 
                       {/* Platform icons */}
-                      <div className="flex items-center justify-between">
-                        <div className="flex gap-1.5">
-                          {trend.platforms.map((p) => (
-                            <PlatformIcon key={p} platform={p} size={20} />
-                          ))}
-                        </div>
-
-                        {/* Action buttons */}
-                        <div className="flex gap-1">
-                          {[
-                            { icon: Bookmark, label: 'Save' },
-                            { icon: Bell, label: 'Alert' },
-                            { icon: Link2, label: 'Connect' },
-                          ].map((action) => (
-                            <button
-                              key={action.label}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                // placeholder action
-                              }}
-                              className="p-1.5 rounded-lg bg-white/5 hover:bg-white/15 transition-colors"
-                              title={action.label}
-                              aria-label={action.label}
-                            >
-                              {createElement(action.icon, { size: 14, className: 'text-gray-400' })}
-                            </button>
-                          ))}
-                        </div>
+                      <div className="flex gap-1.5">
+                        {trend.platforms.map((p) => (
+                          <PlatformIcon key={p} platform={p} size={20} />
+                        ))}
                       </div>
                     </GlassCard>
                   </motion.div>

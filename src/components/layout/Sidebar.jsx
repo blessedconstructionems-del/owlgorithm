@@ -3,49 +3,26 @@ import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
-  Radar,
-  Calendar,
-  BarChart3,
-  FlaskConical,
-  Trophy,
-  ShieldCheck,
-  Target,
   Moon,
-  Link2,
-  Heart,
+  Palette,
+  Radar,
   Settings,
   ChevronLeft,
   ChevronRight,
-  Zap,
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { cn } from '@/lib/utils';
 import SignalMark from '@/components/shared/SignalMark';
 
 const NAV_ITEMS = [
-  { path: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/revenue-god-mode', label: 'Revenue God Mode', icon: Zap },
-  { path: '/trends', label: 'Trend Radar', icon: Radar },
-  { path: '/scheduler', label: 'Scheduler', icon: Calendar },
-  { path: '/analytics', label: 'Analytics', icon: BarChart3 },
-  { path: '/ab-testing', label: 'A/B Testing', icon: FlaskConical },
-  { path: '/leaderboard', label: 'Leaderboard', icon: Trophy },
-  { path: '/truth-radar', label: 'Truth Radar', icon: ShieldCheck },
-  { path: '/strategy', label: 'Strategy', icon: Target },
-  { path: '/night-watch', label: 'Night Watch', icon: Moon },
-  { path: '/platforms', label: 'Platforms', icon: Link2 },
-  { path: '/wellness', label: 'Wellness', icon: Heart },
-  { path: '/settings', label: 'Settings', icon: Settings },
+  { path: '/', label: 'Dashboard', mobileLabel: 'Home', icon: LayoutDashboard },
+  { path: '/trends', label: 'Trend Radar', mobileLabel: 'Trends', icon: Radar },
+  { path: '/night-watch', label: 'Night Watch', mobileLabel: 'Night', icon: Moon },
+  { path: '/media', label: 'Creator Studio', mobileLabel: 'Create', icon: Palette },
+  { path: '/settings', label: 'Settings', mobileLabel: 'Settings', icon: Settings },
 ];
 
-const MOBILE_NAV = NAV_ITEMS.filter((item) => (
-  item.path === '/'
-  || item.path === '/revenue-god-mode'
-  || item.path === '/trends'
-  || item.path === '/scheduler'
-  || item.path === '/analytics'
-  || item.path === '/settings'
-));
+const MOBILE_NAV = NAV_ITEMS;
 
 function NavItem({ item, collapsed, isActive }) {
   const Icon = item.icon;
@@ -212,7 +189,7 @@ function MobileBottomNav() {
   );
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-50 flex h-[72px] items-center justify-around border-t border-white/[0.08] bg-[#0a0d14]/80 backdrop-blur-xl md:hidden px-2">
+    <nav className="fixed inset-x-0 bottom-0 z-50 grid h-[68px] grid-cols-5 items-center gap-1 border-t border-white/[0.08] bg-[#0a0d14]/88 px-1.5 backdrop-blur-xl md:hidden">
       {MOBILE_NAV.map((item) => {
         const Icon = item.icon;
         const active = isActive(item.path);
@@ -221,7 +198,7 @@ function MobileBottomNav() {
             key={item.path}
             to={item.path}
             className={cn(
-              'relative flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all',
+              'relative flex min-w-0 flex-col items-center gap-1 rounded-xl px-1.5 py-2 transition-all',
               active ? 'text-blue-400' : 'text-gray-600'
             )}
           >
@@ -233,7 +210,7 @@ function MobileBottomNav() {
               />
             )}
             <Icon size={20} className="relative z-10" />
-            <span className="relative z-10 text-[10px] font-medium">{item.label}</span>
+            <span className="relative z-10 max-w-full truncate text-[9px] font-medium">{item.mobileLabel || item.label}</span>
           </Link>
         );
       })}

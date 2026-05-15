@@ -1,356 +1,410 @@
-import { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Moon, Sunrise, Sparkles, Flame, TrendingDown, Lightbulb, ChevronDown, ChevronRight, CalendarDays, Rocket, Eye } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
+import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import {
+  AlertTriangle,
+  ArrowRight,
+  Download,
+  Moon,
+  Radar,
+  RefreshCw,
+  ShieldCheck,
+  Sparkles,
+} from 'lucide-react';
+
 import GlassCard from '@/components/shared/GlassCard';
 import PageWrapper from '@/components/shared/PageWrapper';
-import PlatformIcon from '@/components/shared/PlatformIcon';
-import AnimatedNumber from '@/components/shared/AnimatedNumber';
 import StatusBadge from '@/components/shared/StatusBadge';
-import { nightWatchReports } from '@/data/nightWatch';
+import PlatformIcon from '@/components/shared/PlatformIcon';
+import { refreshTrends, useTrendsData } from '@/data/trends';
+import { useScrapeStatus } from '@/hooks/useScrapeStatus';
+import { cn } from '@/lib/utils';
 
-const stagger = {
-  animate: { transition: { staggerChildren: 0.08 } },
-};
+function valueOf(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
 
-const fadeUp = {
-  initial: { opacity: 0, y: 20 },
-  animate: { opacity: 1, y: 0, transition: { duration: 0.5 } },
-};
+function formatTimestamp(value) {
+  if (!value) return 'Not available';
+
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(new Date(value));
+  } catch {
+    return value;
+  }
+}
+
+function downloadJson(filename, payload) {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function classifyTrend(trend) {
+  const velocity = valueOf(trend.growthVelocity);
+  const opportunity = valueOf(trend.opportunityScore);
+  const momentum = valueOf(trend.momentum);
+  const saturation = `${trend.saturation || ''}`.toLowerCase();
+  const competition = `${trend.competition || ''}`.toLowerCase();
+
+  if (velocity < 0 || saturation === 'declining') {
+    return {
+      label: 'Cooling',
+      tone: 'rose',
+      action: 'Do not build new evergreen content from this until it reverses.',
+    };
+  }
+
+  if (competition === 'high' && saturation === 'peak') {
+    return {
+      label: 'Crowded',
+      tone: 'amber',
+      action: 'Use only if you have a sharper angle than the current feed.',
+    };
+  }
+
+  if (opportunity >= 70 && velocity >= 10) {
+    return {
+      label: 'Build',
+      tone: 'emerald',
+      action: 'Create a short post or media asset before the next refresh.',
+    };
+  }
+
+  if (momentum >= 75 || velocity >= 8) {
+    return {
+      label: 'Watch',
+      tone: 'blue',
+      action: 'Keep this on the board and prepare a draft angle.',
+    };
+  }
+
+  return {
+    label: 'Hold',
+    tone: 'slate',
+    action: 'Track it, but do not spend production time yet.',
+  };
+}
+
+function buildWatchReport(trends, lastUpdated, scrapeStatus) {
+  const enriched = trends.map((trend) => ({
+    ...trend,
+    nightScore: Math.round(
+      valueOf(trend.opportunityScore) * 0.42
+      + Math.max(valueOf(trend.growthVelocity), 0) * 0.26
+      + valueOf(trend.momentum) * 0.24
+      + (trend.platforms?.length || 0) * 2,
+    ),
+    signal: classifyTrend(trend),
+  })).sort((a, b) => b.nightScore - a.nightScore);
+
+  const buildQueue = enriched.filter((trend) => trend.signal.label === 'Build').slice(0, 5);
+  const watchQueue = enriched.filter((trend) => ['Watch', 'Hold'].includes(trend.signal.label)).slice(0, 6);
+  const riskQueue = enriched.filter((trend) => ['Cooling', 'Crowded'].includes(trend.signal.label)).slice(0, 5);
+
+  return {
+    generatedAt: new Date().toISOString(),
+    lastUpdated,
+    scraper: {
+      enabled: Boolean(scrapeStatus?.enabled),
+      running: Boolean(scrapeStatus?.scrapeInProgress),
+      lastFullRun: scrapeStatus?.lastFullRun || null,
+    },
+    buildQueue,
+    watchQueue,
+    riskQueue,
+  };
+}
+
+function toneClasses(tone) {
+  if (tone === 'emerald') return 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200';
+  if (tone === 'blue') return 'border-blue-500/20 bg-blue-500/10 text-blue-200';
+  if (tone === 'amber') return 'border-amber-500/20 bg-amber-500/10 text-amber-200';
+  if (tone === 'rose') return 'border-rose-500/20 bg-rose-500/10 text-rose-200';
+  return 'border-white/10 bg-white/[0.04] text-gray-300';
+}
+
+function TrendRow({ trend, rank }) {
+  return (
+    <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/[0.05] text-xs font-bold text-gray-300">
+              {rank}
+            </span>
+            <h3 className="truncate text-sm font-semibold text-white">{trend.name}</h3>
+          </div>
+          <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-gray-400">
+            {trend.aiInsight || trend.description || trend.signal.action}
+          </p>
+        </div>
+
+        <div className={cn('inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-xs font-semibold', toneClasses(trend.signal.tone))}>
+          {trend.signal.label}
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-2 text-xs sm:grid-cols-4">
+        <div className="rounded-lg bg-white/[0.03] px-3 py-2">
+          <p className="text-gray-500">Night score</p>
+          <p className="mt-1 font-semibold text-white">{trend.nightScore}</p>
+        </div>
+        <div className="rounded-lg bg-white/[0.03] px-3 py-2">
+          <p className="text-gray-500">Momentum</p>
+          <p className="mt-1 font-semibold text-white">{valueOf(trend.momentum)}</p>
+        </div>
+        <div className="rounded-lg bg-white/[0.03] px-3 py-2">
+          <p className="text-gray-500">Growth</p>
+          <p className="mt-1 font-semibold text-white">
+            {valueOf(trend.growthVelocity) > 0 ? '+' : ''}
+            {valueOf(trend.growthVelocity)}%
+          </p>
+        </div>
+        <div className="rounded-lg bg-white/[0.03] px-3 py-2">
+          <p className="text-gray-500">Opportunity</p>
+          <p className="mt-1 font-semibold text-white">{valueOf(trend.opportunityScore)}</p>
+        </div>
+      </div>
+
+      <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {(trend.platforms || []).slice(0, 5).map((platform) => (
+            <PlatformIcon key={platform} platform={platform} size={20} />
+          ))}
+          {(trend.platforms || []).length > 5 ? (
+            <span className="text-xs text-gray-500">+{trend.platforms.length - 5}</span>
+          ) : null}
+        </div>
+
+        <Link
+          to={`/media?trend=${encodeURIComponent(trend.id)}`}
+          className="inline-flex items-center justify-center gap-2 rounded-lg border border-blue-500/25 bg-blue-500/10 px-3 py-2 text-xs font-semibold text-blue-200 transition-colors hover:bg-blue-500/15"
+        >
+          Build media
+          <ArrowRight size={14} />
+        </Link>
+      </div>
+    </div>
+  );
+}
 
 export default function NightWatch() {
-  const [expandedDay, setExpandedDay] = useState(null);
-  const today = nightWatchReports[0];
-  const pastReports = nightWatchReports.slice(1);
+  const { trends, status, error, lastUpdated, serverAvailable } = useTrendsData(true);
+  const { data: scrapeStatus, refresh: refreshScrapeStatus } = useScrapeStatus(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [message, setMessage] = useState(null);
 
-  const stats = useMemo(() => ({
-    emerging: today.emergingTrends.length,
-    viral: today.viralTrends.length,
-    declining: today.decliningTrends.length,
-  }), [today]);
+  const report = useMemo(
+    () => buildWatchReport(trends, lastUpdated, scrapeStatus),
+    [lastUpdated, scrapeStatus, trends],
+  );
+
+  const topTrend = report.buildQueue[0] || report.watchQueue[0] || null;
+  const hasTrends = trends.length > 0;
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    setMessage(null);
+
+    try {
+      await Promise.all([refreshTrends(), refreshScrapeStatus()]);
+      setMessage('Night Watch refreshed from the backend cache.');
+    } catch (refreshError) {
+      setMessage(refreshError.message);
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  function handleExport() {
+    downloadJson('owlgorithm-night-watch.json', report);
+    setMessage('Night Watch report exported.');
+  }
 
   return (
-    <PageWrapper>
-      <motion.div variants={stagger} initial="initial" animate="animate" className="space-y-8">
-        {/* Header */}
-        <motion.div variants={fadeUp} className="flex items-center gap-4">
-          <div className="relative">
-            <Moon className="w-10 h-10 text-blue-400 opacity-40 absolute -left-1 -top-1" />
-            <Sunrise className="w-10 h-10 text-amber-400 relative z-10" />
-          </div>
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-amber-400 bg-clip-text text-transparent">
-              Night Watch
-            </h1>
-            <p className="text-gray-400 text-sm mt-0.5">While you were sleeping...</p>
-          </div>
-        </motion.div>
-
-        {/* Today's Briefing Card */}
-        <motion.div variants={fadeUp}>
-          <GlassCard hover={false} gradient accent="amber" className="relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-purple-500/5 to-amber-500/5 pointer-events-none" />
-            <div className="relative z-10">
-              <div className="flex items-center gap-2 mb-4">
-                <CalendarDays className="w-5 h-5 text-purple-400" />
-                <span className="text-lg font-semibold text-white">
-                  {format(parseISO(today.date), 'EEEE, MMMM do, yyyy')}
-                </span>
+    <PageWrapper className="space-y-6">
+      <GlassCard hover={false} accent="blue" className="overflow-visible">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <StatusBadge status={serverAvailable ? 'active' : 'disabled'} />
+              <StatusBadge status={scrapeStatus?.scrapeInProgress ? 'pending' : scrapeStatus?.enabled ? 'active' : 'disabled'} />
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04] text-blue-300">
+                <Moon size={20} />
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                <div className="flex flex-col items-center p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-                  <Sparkles className="w-6 h-6 text-emerald-400 mb-2" />
-                  <AnimatedNumber value={stats.emerging} className="text-3xl font-bold text-emerald-400" />
-                  <span className="text-sm text-gray-400 mt-1">New Trends Detected</span>
-                </div>
-                <div className="flex flex-col items-center p-4 rounded-xl bg-orange-500/10 border border-orange-500/20">
-                  <Flame className="w-6 h-6 text-orange-400 mb-2" />
-                  <AnimatedNumber value={stats.viral} className="text-3xl font-bold text-orange-400" />
-                  <span className="text-sm text-gray-400 mt-1">Trends Went Viral</span>
-                </div>
-                <div className="flex flex-col items-center p-4 rounded-xl bg-red-500/10 border border-red-500/20">
-                  <TrendingDown className="w-6 h-6 text-red-400 mb-2" />
-                  <AnimatedNumber value={stats.declining} className="text-3xl font-bold text-red-400" />
-                  <span className="text-sm text-gray-400 mt-1">Trends Declining</span>
-                </div>
+              <div className="min-w-0">
+                <h1 className="text-2xl font-bold text-white sm:text-3xl">Night Watch</h1>
+                <p className="mt-1 text-sm leading-relaxed text-gray-400">
+                  Overnight watchlist built from the live trend cache, not seeded demo data.
+                </p>
               </div>
             </div>
-          </GlassCard>
-        </motion.div>
+          </div>
 
-        {/* New Emerging Trends */}
-        <motion.div variants={fadeUp}>
-          <div className="flex items-center gap-2 mb-4">
-            <Sparkles className="w-5 h-5 text-emerald-400" />
-            <h2 className="text-lg sm:text-xl font-semibold text-white">New Emerging Trends</h2>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
+              Refresh
+            </button>
+            <button
+              onClick={handleExport}
+              disabled={!hasTrends}
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Download size={16} />
+              Export report
+            </button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {today.emergingTrends.map((trend, i) => (
-              <motion.div
-                key={trend.name}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 * i, duration: 0.4 }}
-              >
-                <GlassCard accent="emerald" className="h-full flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-base font-semibold text-white">{trend.name}</span>
-                        <motion.span
-                          animate={{ scale: [1, 1.3, 1], opacity: [1, 0.6, 1] }}
-                          transition={{ duration: 2, repeat: Infinity }}
-                          className="text-yellow-400 text-xs"
-                        >
-                          NEW
-                        </motion.span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 mb-3">
-                      <StatusBadge status="emerging" />
-                      <PlatformIcon platform={trend.platform} size={22} />
-                      <span className="text-xs text-gray-400">{trend.platform}</span>
-                    </div>
-                    <div className="flex items-center gap-2 mb-4">
-                      <span className="text-xs text-gray-500">Momentum</span>
-                      <div className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
-                        <motion.div
-                          className="h-full rounded-full bg-emerald-400"
-                          initial={{ width: 0 }}
-                          animate={{ width: `${trend.momentum}%` }}
-                          transition={{ duration: 1, delay: 0.2 * i }}
-                        />
-                      </div>
-                      <span className="text-xs font-mono text-emerald-400">{trend.momentum}</span>
-                    </div>
-                  </div>
-                  <button className="w-full py-2 px-4 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-sm font-medium hover:bg-emerald-500/25 transition-colors">
-                    Track This Trend
-                  </button>
-                </GlassCard>
-              </motion.div>
-            ))}
-          </div>
-        </motion.div>
+        </div>
 
-        {/* Trends Entering Viral */}
-        <motion.div variants={fadeUp}>
-          <div className="flex items-center gap-2 mb-4">
-            <Flame className="w-5 h-5 text-orange-400" />
-            <h2 className="text-lg sm:text-xl font-semibold text-white">Trends Entering Viral</h2>
+        <div className="mt-6 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-3">
+            <p className="text-xs uppercase tracking-[0.18em] text-gray-500">Live cache</p>
+            <p className="mt-2 text-2xl font-bold text-white">{trends.length}</p>
+            <p className="mt-1 text-xs text-gray-500">tracked trend records</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {today.viralTrends.map((trend, i) => (
-              <motion.div
-                key={trend.name}
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.12 * i, duration: 0.4 }}
-              >
-                <GlassCard className="relative overflow-hidden border border-orange-500/20">
-                  <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-red-500/5 pointer-events-none" />
-                  <div className="relative z-10">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-lg font-bold text-white">{trend.name}</span>
-                      <span className="text-lg">🔥</span>
-                    </div>
-                    <div className="flex items-center gap-3 mb-3">
-                      <PlatformIcon platform={trend.platform} size={22} />
-                      <span className="text-sm text-gray-400">{trend.platform}</span>
-                    </div>
-                    <div className="flex items-center gap-2 mb-4">
-                      <span className="text-xs text-gray-500">Momentum</span>
-                      <div className="flex-1 h-2 rounded-full bg-white/10 overflow-hidden">
-                        <motion.div
-                          className="h-full rounded-full bg-gradient-to-r from-orange-400 to-red-500"
-                          initial={{ width: 0 }}
-                          animate={{ width: `${trend.momentum}%` }}
-                          transition={{ duration: 1.2, delay: 0.2 * i }}
-                        />
-                      </div>
-                      <span className="text-sm font-mono font-bold text-orange-400">{trend.momentum}</span>
-                    </div>
-                    <button className="w-full py-2.5 px-4 rounded-lg bg-gradient-to-r from-orange-500 to-red-500 text-white text-sm font-semibold hover:from-orange-600 hover:to-red-600 transition-all shadow-lg shadow-orange-500/20">
-                      Ride This Wave
-                    </button>
-                  </div>
-                </GlassCard>
-              </motion.div>
-            ))}
+          <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-3">
+            <p className="text-xs uppercase tracking-[0.18em] text-gray-500">Last refresh</p>
+            <p className="mt-2 text-sm font-semibold text-white">{formatTimestamp(lastUpdated || scrapeStatus?.lastFullRun)}</p>
+            <p className="mt-1 text-xs text-gray-500">backend cache timestamp</p>
           </div>
-        </motion.div>
+          <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-3">
+            <p className="text-xs uppercase tracking-[0.18em] text-gray-500">Build queue</p>
+            <p className="mt-2 text-2xl font-bold text-white">{report.buildQueue.length}</p>
+            <p className="mt-1 text-xs text-gray-500">items ready for media work</p>
+          </div>
+        </div>
 
-        {/* Declining Trends */}
-        <motion.div variants={fadeUp}>
-          <div className="flex items-center gap-2 mb-4">
-            <TrendingDown className="w-5 h-5 text-red-400" />
-            <h2 className="text-lg sm:text-xl font-semibold text-white">Declining Trends</h2>
+        {message || error ? (
+          <div className={cn(
+            'mt-5 rounded-xl border px-4 py-3 text-sm',
+            error ? 'border-red-500/20 bg-red-500/10 text-red-100' : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-100',
+          )}>
+            {error || message}
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {today.decliningTrends.map((trend, i) => (
-              <motion.div
-                key={trend.name}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.1 * i, duration: 0.4 }}
-              >
-                <GlassCard hover={false} accent="rose" className="border border-red-500/15">
-                  <div className="flex items-start gap-3">
-                    <div className="mt-0.5 p-2 rounded-lg bg-red-500/10">
-                      <TrendingDown className="w-5 h-5 text-red-400" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-base font-semibold text-white mb-1">{trend.name}</h3>
-                      <p className="text-sm text-amber-300/80 leading-relaxed">{trend.recommendation}</p>
-                    </div>
-                  </div>
-                </GlassCard>
-              </motion.div>
-            ))}
-          </div>
-        </motion.div>
+        ) : null}
+      </GlassCard>
 
-        {/* Top Opportunities */}
-        <motion.div variants={fadeUp}>
-          <div className="flex items-center gap-2 mb-4">
-            <Lightbulb className="w-5 h-5 text-yellow-400" />
-            <h2 className="text-lg sm:text-xl font-semibold text-white">Top Opportunities</h2>
+      {!hasTrends && status !== 'loading' ? (
+        <GlassCard hover={false} accent="amber" className="text-center">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-white/[0.04] text-amber-300">
+            <Radar size={22} />
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {today.opportunities.map((opp, i) => (
-              <motion.div
-                key={opp.title}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 * i, duration: 0.5 }}
-              >
-                <GlassCard
-                  hover={false}
-                  gradient={i === 0}
-                  className={`h-full flex flex-col justify-between ${i === 0 ? 'ring-1 ring-purple-500/30' : ''}`}
-                >
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      {i === 0 && (
-                        <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-gradient-to-r from-purple-500 to-blue-500 text-white">
-                          #1
-                        </span>
-                      )}
-                      <Rocket className="w-4 h-4 text-purple-400" />
-                    </div>
-                    <h3 className="text-base font-semibold text-white mb-2">{opp.title}</h3>
-                    <p className="text-sm text-gray-400 leading-relaxed mb-4">{opp.description}</p>
-                  </div>
-                  <button className="w-full py-2.5 px-4 rounded-lg bg-gradient-to-r from-blue-500 to-purple-500 text-white text-sm font-semibold hover:from-blue-600 hover:to-purple-600 transition-all shadow-lg shadow-blue-500/20">
-                    {opp.actionLabel}
-                  </button>
-                </GlassCard>
-              </motion.div>
-            ))}
-          </div>
-        </motion.div>
-
-        {/* Historical Reports */}
-        <motion.div variants={fadeUp}>
-          <div className="flex items-center gap-2 mb-4">
-            <Eye className="w-5 h-5 text-blue-400" />
-            <h2 className="text-lg sm:text-xl font-semibold text-white">Past 7 Days</h2>
-          </div>
-          <div className="space-y-2">
-            {pastReports.map((report) => {
-              const isExpanded = expandedDay === report.date;
-              return (
-                <GlassCard
-                  key={report.date}
-                  hover={false}
-                  className="!p-0 overflow-hidden"
-                >
-                  <button
-                    onClick={() => setExpandedDay(isExpanded ? null : report.date)}
-                    className="w-full flex items-center justify-between p-4 text-left hover:bg-white/[0.02] transition-colors"
+          <h2 className="text-lg font-semibold text-white">No live trend records yet</h2>
+          <p className="mx-auto mt-2 max-w-lg text-sm leading-relaxed text-gray-400">
+            Night Watch will populate after the scraper writes trend records to the backend cache.
+          </p>
+          <Link
+            to="/trends"
+            className="mt-5 inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/[0.07]"
+          >
+            Open Trend Radar
+            <ArrowRight size={15} />
+          </Link>
+        </GlassCard>
+      ) : (
+        <>
+          <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+            <GlassCard hover={false} accent="emerald" className="space-y-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
+                    <Sparkles size={18} className="text-emerald-300" />
+                    Build Before Morning
+                  </h2>
+                  <p className="mt-1 text-sm text-gray-500">Trends with enough momentum and opportunity to act on now.</p>
+                </div>
+                {topTrend ? (
+                  <Link
+                    to={`/media?trend=${encodeURIComponent(topTrend.id)}`}
+                    className="hidden items-center gap-2 rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-100 transition-colors hover:bg-emerald-500/15 sm:inline-flex"
                   >
-                    <div className="flex items-center gap-3">
-                      {isExpanded ? (
-                        <ChevronDown className="w-4 h-4 text-gray-400" />
-                      ) : (
-                        <ChevronRight className="w-4 h-4 text-gray-400" />
-                      )}
-                      <span className="text-sm font-semibold text-white">
-                        {format(parseISO(report.date), 'EEEE, MMM do')}
+                    Open builder
+                    <ArrowRight size={14} />
+                  </Link>
+                ) : null}
+              </div>
+
+              {report.buildQueue.length ? (
+                <div className="space-y-3">
+                  {report.buildQueue.map((trend, index) => (
+                    <TrendRow key={trend.id} trend={trend} rank={index + 1} />
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-8 text-center">
+                  <ShieldCheck size={22} className="mx-auto text-gray-500" />
+                  <p className="mt-3 text-sm font-semibold text-white">No urgent builds right now</p>
+                  <p className="mx-auto mt-2 max-w-md text-sm text-gray-500">
+                    The current trend cache does not have a high-confidence build signal.
+                  </p>
+                </div>
+              )}
+            </GlassCard>
+
+            <GlassCard hover={false} accent="blue" className="space-y-4">
+              <h2 className="text-lg font-semibold text-white">Watchlist</h2>
+              <div className="space-y-3">
+                {report.watchQueue.slice(0, 5).map((trend, index) => (
+                  <div key={trend.id} className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-white">{index + 1}. {trend.name}</p>
+                        <p className="mt-1 text-xs leading-relaxed text-gray-500">{trend.signal.action}</p>
+                      </div>
+                      <span className={cn('shrink-0 rounded-full border px-2 py-1 text-[11px] font-semibold', toneClasses(trend.signal.tone))}>
+                        {trend.signal.label}
                       </span>
                     </div>
-                    <div className="hidden sm:flex items-center gap-4 text-xs text-gray-500">
-                      <span className="text-emerald-400">{report.emergingTrends.length} emerging</span>
-                      <span className="text-orange-400">{report.viralTrends.length} viral</span>
-                      <span className="text-red-400">{report.decliningTrends.length} declining</span>
-                    </div>
-                  </button>
-                  <AnimatePresence>
-                    {isExpanded && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.3 }}
-                        className="overflow-hidden"
-                      >
-                        <div className="px-4 pb-4 pt-2 border-t border-white/5 space-y-4">
-                          {report.emergingTrends.length > 0 && (
-                            <div>
-                              <h4 className="text-xs font-semibold text-emerald-400 uppercase tracking-wider mb-2">Emerging</h4>
-                              <div className="flex flex-wrap gap-2">
-                                {report.emergingTrends.map((t) => (
-                                  <span key={t.name} className="px-3 py-1 text-xs rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                                    {t.name} ({t.momentum})
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                          {report.viralTrends.length > 0 && (
-                            <div>
-                              <h4 className="text-xs font-semibold text-orange-400 uppercase tracking-wider mb-2">Viral</h4>
-                              <div className="flex flex-wrap gap-2">
-                                {report.viralTrends.map((t) => (
-                                  <span key={t.name} className="px-3 py-1 text-xs rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20">
-                                    {t.name} ({t.momentum})
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                          {report.decliningTrends.length > 0 && (
-                            <div>
-                              <h4 className="text-xs font-semibold text-red-400 uppercase tracking-wider mb-2">Declining</h4>
-                              {report.decliningTrends.map((t) => (
-                                <div key={t.name} className="mb-2 last:mb-0">
-                                  <span className="text-sm text-white">{t.name}</span>
-                                  <p className="text-xs text-gray-500 mt-0.5">{t.recommendation}</p>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                          {report.opportunities.length > 0 && (
-                            <div>
-                              <h4 className="text-xs font-semibold text-purple-400 uppercase tracking-wider mb-2">Opportunities</h4>
-                              {report.opportunities.map((o) => (
-                                <div key={o.title} className="mb-2 last:mb-0">
-                                  <span className="text-sm text-white font-medium">{o.title}</span>
-                                  <p className="text-xs text-gray-500 mt-0.5">{o.description}</p>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </GlassCard>
-              );
-            })}
+                  </div>
+                ))}
+              </div>
+            </GlassCard>
           </div>
-        </motion.div>
-      </motion.div>
+
+          <GlassCard hover={false} accent="rose" className="space-y-4">
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
+              <AlertTriangle size={18} className="text-rose-300" />
+              Risk Board
+            </h2>
+            {report.riskQueue.length ? (
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {report.riskQueue.map((trend) => (
+                  <div key={trend.id} className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="min-w-0 text-sm font-semibold text-white">{trend.name}</p>
+                      <span className={cn('shrink-0 rounded-full border px-2 py-1 text-[11px] font-semibold', toneClasses(trend.signal.tone))}>
+                        {trend.signal.label}
+                      </span>
+                    </div>
+                    <p className="mt-3 text-sm leading-relaxed text-gray-400">{trend.signal.action}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-5 text-sm text-gray-400">
+                No cooling or crowded signals are present in the current cache.
+              </p>
+            )}
+          </GlassCard>
+        </>
+      )}
     </PageWrapper>
   );
 }

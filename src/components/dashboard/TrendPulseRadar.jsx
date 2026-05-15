@@ -35,7 +35,7 @@ function dotSize(growthVelocity) {
 }
 
 export default function TrendPulseRadar({ trendItems }) {
-  const { trends: liveTrends } = useTrendsData();
+  const { trends: liveTrends, serverAvailable, status } = useTrendsData();
   const trendSource = trendItems ?? liveTrends;
   const [hoveredTrend, setHoveredTrend] = useState(null);
   const [tooltipPos, setTooltipPos] = useState(null);
@@ -62,6 +62,9 @@ export default function TrendPulseRadar({ trendItems }) {
     });
   }, [cx, cy, innerR, outerR, trendSource]);
 
+  const hasTrends = trendSource.length > 0;
+  const statusLabel = serverAvailable && hasTrends ? 'Live' : status === 'loading' ? 'Loading' : 'No data';
+
   function handleDotHover(trend) {
     const svgEl = svgRef.current;
     if (!svgEl) return;
@@ -79,8 +82,8 @@ export default function TrendPulseRadar({ trendItems }) {
   return (
     <div className="glass-card relative w-full rounded-2xl border-white/[0.1] !bg-[linear-gradient(145deg,rgba(7,12,18,0.46),rgba(10,14,20,0.32))] p-4 shadow-[0_24px_64px_-24px_rgba(0,0,0,0.72)] sm:p-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div>
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <h2 className="text-lg sm:text-xl font-semibold tracking-tight text-white drop-shadow-[0_3px_18px_rgba(0,0,0,0.72)]">
             Trend Pulse Radar
           </h2>
@@ -88,12 +91,22 @@ export default function TrendPulseRadar({ trendItems }) {
             Real-time momentum across {trendSource.length} tracked trends
           </p>
         </div>
-        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+        <div className={`flex w-fit shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 ${
+          serverAvailable && hasTrends
+            ? 'bg-emerald-500/10 border-emerald-500/20'
+            : 'bg-amber-500/10 border-amber-500/20'
+        }`}>
           <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+            {serverAvailable && hasTrends ? (
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+            ) : null}
+            <span className={`relative inline-flex rounded-full h-2 w-2 ${
+              serverAvailable && hasTrends ? 'bg-emerald-500' : 'bg-amber-400'
+            }`} />
           </span>
-          <span className="text-xs font-medium text-emerald-400">Live</span>
+          <span className={`text-xs font-medium ${
+            serverAvailable && hasTrends ? 'text-emerald-400' : 'text-amber-300'
+          }`}>{statusLabel}</span>
         </div>
       </div>
 
@@ -272,6 +285,20 @@ export default function TrendPulseRadar({ trendItems }) {
               />
             </motion.g>
           ))}
+
+          {!hasTrends && (
+            <text
+              x={cx}
+              y={cy + 34}
+              fill="rgba(255,255,255,0.38)"
+              fontSize="13"
+              fontFamily="Inter, system-ui, sans-serif"
+              textAnchor="middle"
+              fontWeight="500"
+            >
+              Waiting for backend trend data
+            </text>
+          )}
         </svg>
 
         {/* Tooltip (rendered outside SVG for rich HTML) */}
