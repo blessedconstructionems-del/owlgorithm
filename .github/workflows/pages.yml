@@ -21,6 +21,7 @@ jobs:
       ENABLE_SCRAPER: "false"
       OWLGORITHM_BASE_PATH: /owlgorithm/
       OWLGORITHM_PUBLIC_URL: https://blessedconstructionems-del.github.io/owlgorithm
+      VITE_STATIC_PREVIEW: "1"
 
     steps:
       - uses: actions/checkout@v4

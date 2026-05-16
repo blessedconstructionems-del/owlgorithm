@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { apiRequest } from '@/lib/api';
+import { STATIC_PREVIEW, apiRequest } from '@/lib/api';
 import { resetTrendsStore } from '@/data/trends';
 
 const AppContext = createContext(null);
@@ -42,6 +42,20 @@ function buildAnonymousState() {
   };
 }
 
+function buildPreviewState() {
+  return {
+    authStatus: 'guest',
+    user: normalizeUser({
+      id: 'static-preview',
+      name: 'Preview Guest',
+      email: 'preview@owlgorithm.local',
+      plan: 'Preview',
+      isGuest: true,
+    }),
+    preferences: DEFAULT_PREFERENCES,
+  };
+}
+
 export function AppProvider({ children }) {
   const [authStatus, setAuthStatus] = useState('loading');
   const [user, setUser] = useState(null);
@@ -52,7 +66,7 @@ export function AppProvider({ children }) {
 
   const applySession = useCallback((payload) => {
     if (payload?.authenticated && payload.user) {
-      setAuthStatus('authenticated');
+      setAuthStatus(payload.user.isGuest ? 'guest' : 'authenticated');
       setUser(normalizeUser(payload.user));
       setPreferences({
         environment: normalizeEnvironment(payload.preferences?.environment),
@@ -68,6 +82,19 @@ export function AppProvider({ children }) {
   }, []);
 
   const refreshSession = useCallback(async () => {
+    if (STATIC_PREVIEW) {
+      const preview = buildPreviewState();
+      setAuthStatus(preview.authStatus);
+      setUser(preview.user);
+      setPreferences(preview.preferences);
+      setAuthError(null);
+      return {
+        authenticated: true,
+        user: preview.user,
+        preferences: preview.preferences,
+      };
+    }
+
     try {
       const data = await apiRequest('/api/auth/session');
       applySession(data);
@@ -133,6 +160,15 @@ export function AppProvider({ children }) {
   }, [runAuthMutation]);
 
   const logout = useCallback(async () => {
+    if (STATIC_PREVIEW) {
+      const preview = buildPreviewState();
+      setAuthStatus(preview.authStatus);
+      setUser(preview.user);
+      setPreferences(preview.preferences);
+      setAuthError(null);
+      return;
+    }
+
     if (authStatus === 'authenticated') {
       try {
         await apiRequest('/api/auth/logout', { method: 'POST' });
@@ -147,6 +183,17 @@ export function AppProvider({ children }) {
   }, [applySession, authStatus]);
 
   const updateProfile = useCallback(async ({ name, email }) => {
+    if (STATIC_PREVIEW) {
+      const nextUser = normalizeUser({ ...user, name, email, isGuest: true });
+      setUser(nextUser);
+      return {
+        authenticated: true,
+        user: nextUser,
+        preferences,
+        verificationRequired: false,
+      };
+    }
+
     const data = await apiRequest('/api/account/profile', {
       method: 'PATCH',
       json: { name, email },
@@ -154,7 +201,7 @@ export function AppProvider({ children }) {
 
     applySession(data);
     return data;
-  }, [applySession]);
+  }, [applySession, preferences, user]);
 
   const updatePreferences = useCallback(async (partial) => {
     const next = {
@@ -163,6 +210,14 @@ export function AppProvider({ children }) {
     };
 
     setPreferences(next);
+
+    if (STATIC_PREVIEW) {
+      return {
+        authenticated: true,
+        user,
+        preferences: next,
+      };
+    }
 
     try {
       const data = await apiRequest('/api/account/preferences', {
@@ -175,9 +230,13 @@ export function AppProvider({ children }) {
       setPreferences(preferences);
       throw error;
     }
-  }, [applySession, preferences]);
+  }, [applySession, preferences, user]);
 
   const changePassword = useCallback(async ({ currentPassword, newPassword }) => {
+    if (STATIC_PREVIEW) {
+      throw new Error('Password changes need the live Owlgorithm backend.');
+    }
+
     return apiRequest('/api/account/password', {
       method: 'POST',
       json: { currentPassword, newPassword },
@@ -185,6 +244,10 @@ export function AppProvider({ children }) {
   }, []);
 
   const deleteAccount = useCallback(async ({ password }) => {
+    if (STATIC_PREVIEW) {
+      throw new Error('Account deletion needs the live Owlgorithm backend.');
+    }
+
     await apiRequest('/api/account', {
       method: 'DELETE',
       json: { password },

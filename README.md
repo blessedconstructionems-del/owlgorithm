@@ -61,6 +61,7 @@ Important variables:
 - `OWLGORITHM_SOCIAL_STATUS_ENDPOINT`: optional provider status endpoint path
 - `VITE_API_BASE_URL`: optional frontend override; leave blank for same-origin requests
 - `OWLGORITHM_DEV_API_TARGET`: optional Vite proxy target for local development
+- `VITE_STATIC_PREVIEW`: set `1` only for static preview builds such as GitHub Pages, where there is no Node API
 
 ## Local Development
 
@@ -153,6 +154,7 @@ The Node server serves:
 
 Static demo JSON and seeded frontend datasets are not shipped. If the scraper cache is empty, the UI shows empty states until the backend writes live trend data.
 Media planning works without provider credentials. Image and video generation stays disabled until the private media provider configuration is present on the server.
+GitHub Pages builds set `VITE_STATIC_PREVIEW=1`, which opens the app as a read-only preview guest and returns empty live-data responses instead of requiring the Node session API.
 
 For deployment, use a persistent disk when `OWLGORITHM_DATA_DIR` points outside the repo so accounts and scraper cache survive restarts.
 Production signup and password recovery also require `OWLGORITHM_PUBLIC_URL`, `OWLGORITHM_EMAIL_FROM`, and working SMTP credentials.
