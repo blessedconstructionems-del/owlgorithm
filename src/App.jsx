@@ -7,6 +7,7 @@ const Dashboard = lazy(() => import('./pages/Dashboard'));
 const TrendRadar = lazy(() => import('./pages/TrendRadar'));
 const NightWatch = lazy(() => import('./pages/NightWatch'));
 const MediaBuilder = lazy(() => import('./pages/MediaBuilder'));
+const FeatureModule = lazy(() => import('./pages/FeatureModule'));
 const Settings = lazy(() => import('./pages/Settings'));
 const AuthPage = lazy(() => import('./pages/Auth'));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPassword'));
@@ -37,12 +38,12 @@ function RouteLoading() {
   );
 }
 
-function RoutedPage({ component }) {
+function RoutedPage({ component, ...props }) {
   const Component = component;
 
   return (
     <Suspense fallback={<RouteLoading />}>
-      <Component />
+      <Component {...props} />
     </Suspense>
   );
 }
@@ -95,15 +96,15 @@ function App() {
         <Route path="/night-watch" element={<RoutedPage component={NightWatch} />} />
         <Route path="/media" element={<RoutedPage component={MediaBuilder} />} />
         <Route path="/settings" element={<RoutedPage component={Settings} />} />
-        <Route path="/revenue-god-mode" element={<Navigate replace to="/" />} />
-        <Route path="/scheduler" element={<Navigate replace to="/" />} />
-        <Route path="/analytics" element={<Navigate replace to="/" />} />
-        <Route path="/ab-testing" element={<Navigate replace to="/" />} />
-        <Route path="/leaderboard" element={<Navigate replace to="/" />} />
-        <Route path="/truth-radar" element={<Navigate replace to="/" />} />
-        <Route path="/strategy" element={<Navigate replace to="/" />} />
-        <Route path="/platforms" element={<Navigate replace to="/" />} />
-        <Route path="/wellness" element={<Navigate replace to="/" />} />
+        <Route path="/revenue-god-mode" element={<RoutedPage component={FeatureModule} moduleId="revenue" />} />
+        <Route path="/scheduler" element={<RoutedPage component={FeatureModule} moduleId="scheduler" />} />
+        <Route path="/analytics" element={<RoutedPage component={FeatureModule} moduleId="analytics" />} />
+        <Route path="/ab-testing" element={<RoutedPage component={FeatureModule} moduleId="abTesting" />} />
+        <Route path="/leaderboard" element={<RoutedPage component={FeatureModule} moduleId="leaderboard" />} />
+        <Route path="/truth-radar" element={<RoutedPage component={FeatureModule} moduleId="truthRadar" />} />
+        <Route path="/strategy" element={<RoutedPage component={FeatureModule} moduleId="strategy" />} />
+        <Route path="/platforms" element={<RoutedPage component={FeatureModule} moduleId="platforms" />} />
+        <Route path="/wellness" element={<RoutedPage component={FeatureModule} moduleId="wellness" />} />
       </Route>
       <Route path="*" element={<Navigate replace to="/" />} />
     </Routes>

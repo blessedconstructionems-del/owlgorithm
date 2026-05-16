@@ -2,11 +2,20 @@ import { useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
+  BarChart3,
+  Calendar,
+  FlaskConical,
+  Heart,
   LayoutDashboard,
+  Link2,
   Moon,
   Palette,
   Radar,
   Settings,
+  ShieldCheck,
+  Target,
+  Trophy,
+  Zap,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
@@ -16,9 +25,18 @@ import SignalMark from '@/components/shared/SignalMark';
 
 const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', mobileLabel: 'Home', icon: LayoutDashboard },
+  { path: '/revenue-god-mode', label: 'Revenue God Mode', mobileLabel: 'Revenue', icon: Zap },
   { path: '/trends', label: 'Trend Radar', mobileLabel: 'Trends', icon: Radar },
+  { path: '/scheduler', label: 'Scheduler', mobileLabel: 'Schedule', icon: Calendar },
+  { path: '/analytics', label: 'Analytics', mobileLabel: 'Analytics', icon: BarChart3 },
+  { path: '/ab-testing', label: 'A/B Testing', mobileLabel: 'A/B', icon: FlaskConical },
+  { path: '/leaderboard', label: 'Leaderboard', mobileLabel: 'Winners', icon: Trophy },
+  { path: '/truth-radar', label: 'Truth Radar', mobileLabel: 'Truth', icon: ShieldCheck },
+  { path: '/strategy', label: 'Strategy', mobileLabel: 'Strategy', icon: Target },
   { path: '/night-watch', label: 'Night Watch', mobileLabel: 'Night', icon: Moon },
+  { path: '/platforms', label: 'Platforms', mobileLabel: 'Platforms', icon: Link2 },
   { path: '/media', label: 'Creator Studio', mobileLabel: 'Create', icon: Palette },
+  { path: '/wellness', label: 'Wellness', mobileLabel: 'Wellness', icon: Heart },
   { path: '/settings', label: 'Settings', mobileLabel: 'Settings', icon: Settings },
 ];
 
@@ -189,7 +207,7 @@ function MobileBottomNav() {
   );
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-50 grid h-[68px] grid-cols-5 items-center gap-1 border-t border-white/[0.08] bg-[#0a0d14]/88 px-1.5 backdrop-blur-xl md:hidden">
+    <nav className="fixed inset-x-0 bottom-0 z-50 flex h-[68px] items-center gap-1 overflow-x-auto border-t border-white/[0.08] bg-[#0a0d14]/88 px-1.5 backdrop-blur-xl scrollbar-none md:hidden">
       {MOBILE_NAV.map((item) => {
         const Icon = item.icon;
         const active = isActive(item.path);
@@ -198,7 +216,7 @@ function MobileBottomNav() {
             key={item.path}
             to={item.path}
             className={cn(
-              'relative flex min-w-0 flex-col items-center gap-1 rounded-xl px-1.5 py-2 transition-all',
+              'relative flex min-w-[70px] flex-col items-center gap-1 rounded-xl px-1.5 py-2 transition-all',
               active ? 'text-blue-400' : 'text-gray-600'
             )}
           >

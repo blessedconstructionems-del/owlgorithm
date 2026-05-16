@@ -10,7 +10,9 @@ import {
   Download,
   Globe2,
   Image as ImageIcon,
+  MessageCircle,
   Play,
+  Radar,
   RefreshCw,
   Send,
   Share2,
@@ -125,6 +127,10 @@ function defaultSocialPlatformIds(platforms, assetType) {
     .map((platform) => platform.id);
 }
 
+function radarPickFrom(trends) {
+  return [...trends].sort((a, b) => (b.opportunityScore || 0) - (a.opportunityScore || 0))[0] || null;
+}
+
 function Field({ label, children, hint }) {
   return (
     <label className="block space-y-2">
@@ -205,6 +211,13 @@ export default function MediaBuilder() {
   const [busy, setBusy] = useState(null);
   const [notice, setNotice] = useState(null);
   const [error, setError] = useState(null);
+  const [studioPrompt, setStudioPrompt] = useState('');
+  const [studioLog, setStudioLog] = useState([
+    {
+      role: 'assistant',
+      text: 'Tell me what you want to post, or use the radar pick. I will choose the format, platform, hook, caption, and recording path.',
+    },
+  ]);
 
   const [cameraOpen, setCameraOpen] = useState(false);
   const [stream, setStream] = useState(null);
@@ -231,6 +244,7 @@ export default function MediaBuilder() {
     [form.trendId, trends],
   );
   const selectedPlatform = platformOptions.find((platform) => platform.id === form.platform) || platformOptions[0];
+  const radarPick = useMemo(() => radarPickFrom(trends), [trends]);
   const conceptReady = Boolean(selectedTrend || form.customConcept.trim());
   const activePlan = result?.plan || plan;
   const asset = result?.asset || null;
@@ -365,12 +379,57 @@ export default function MediaBuilder() {
     setError(null);
   }
 
-  function buildPayload() {
+  function buildPayload(source = form) {
+    return {
+      ...source,
+      trendId: source.trendId || undefined,
+      customConcept: source.trendId ? '' : source.customConcept,
+      duration: Number(source.duration),
+    };
+  }
+
+  function inferPlatformFromIntent(intent, trend) {
+    const lowered = intent.toLowerCase();
+    if (lowered.includes('youtube') || lowered.includes('short')) return 'youtube_shorts';
+    if (lowered.includes('instagram') || lowered.includes('reel')) return 'instagram_reels';
+    if (lowered.includes('linkedin')) return 'linkedin';
+    if (lowered.includes('pinterest') || lowered.includes('pin')) return 'pinterest';
+    if (lowered.includes('twitter') || lowered.includes(' x ')) return 'x';
+
+    const trendPlatforms = (trend?.platforms || []).map((platform) => `${platform}`.toLowerCase());
+    if (trendPlatforms.some((platform) => platform.includes('youtube'))) return 'youtube_shorts';
+    if (trendPlatforms.some((platform) => platform.includes('instagram'))) return 'instagram_reels';
+    if (trendPlatforms.some((platform) => platform.includes('linkedin'))) return 'linkedin';
+    if (trendPlatforms.some((platform) => platform.includes('pinterest'))) return 'pinterest';
+    if (trendPlatforms.some((platform) => platform === 'x' || platform.includes('twitter'))) return 'x';
+    return 'tiktok';
+  }
+
+  function studioFormFromIntent(intent, trend = radarPick) {
+    const lowered = intent.toLowerCase();
+    const nextPlatformId = inferPlatformFromIntent(intent, trend);
+    const nextPlatform = platformOptions.find((platform) => platform.id === nextPlatformId) || platformOptions[0];
+    const wantsImage = lowered.includes('image') || lowered.includes('photo') || lowered.includes('graphic') || lowered.includes('poster');
+    const style = lowered.includes('product')
+      ? 'product'
+      : lowered.includes('cinematic')
+        ? 'cinematic'
+        : lowered.includes('explain') || lowered.includes('teach')
+          ? 'explainer'
+          : 'ugc';
+
     return {
       ...form,
-      trendId: form.trendId || undefined,
-      customConcept: form.trendId ? '' : form.customConcept,
-      duration: Number(form.duration),
+      type: wantsImage ? 'image' : 'video',
+      trendId: trend?.id || '',
+      customConcept: trend?.id ? '' : intent.trim(),
+      platform: nextPlatform?.id || 'tiktok',
+      style,
+      audience: lowered.includes('beginner')
+        ? 'beginners who want practical, low-pressure social media ideas'
+        : form.audience,
+      duration: nextPlatform?.duration || form.duration,
+      truthNote: form.truthNote || 'Avoid guarantees, fake urgency, and unsupported performance claims.',
     };
   }
 
@@ -410,8 +469,9 @@ export default function MediaBuilder() {
     }
   }
 
-  async function handlePlan() {
-    if (!conceptReady) {
+  async function requestPlan(nextForm = form) {
+    const ready = Boolean(nextForm.trendId || nextForm.customConcept.trim());
+    if (!ready) {
       setError('Choose a live trend or enter a custom concept.');
       return;
     }
@@ -423,7 +483,7 @@ export default function MediaBuilder() {
     try {
       const data = await apiRequest('/api/media/plan', {
         method: 'POST',
-        json: buildPayload(),
+        json: buildPayload(nextForm),
       });
       setPlan(data.plan);
       setResult(null);
@@ -433,6 +493,34 @@ export default function MediaBuilder() {
     } finally {
       setBusy(null);
     }
+  }
+
+  async function handlePlan() {
+    await requestPlan(form);
+  }
+
+  async function handleStudioChat(event) {
+    event.preventDefault();
+    const intent = studioPrompt.trim();
+    const trend = selectedTrend || radarPick;
+    if (!intent && !trend) {
+      setError('Tell the studio what to make, or wait for Trend Radar to load a radar pick.');
+      return;
+    }
+
+    const userText = intent || `Use the radar pick: ${trend.name}`;
+    const nextForm = studioFormFromIntent(userText, trend);
+    setForm(nextForm);
+    setStudioPrompt('');
+    setStudioLog((current) => [
+      ...current,
+      { role: 'user', text: userText },
+      {
+        role: 'assistant',
+        text: `${nextForm.type === 'image' ? 'Image' : 'Video'} plan coming up. I picked ${platformOptions.find((platform) => platform.id === nextForm.platform)?.label || 'TikTok'}, ${nextForm.style}, and a beginner-safe hook.`,
+      },
+    ]);
+    await requestPlan(nextForm);
   }
 
   async function handleGenerate() {
@@ -777,9 +865,82 @@ export default function MediaBuilder() {
       <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
         <GlassCard hover={false} accent="blue" className="min-w-0 space-y-5">
           <div>
-            <h2 className="text-lg font-semibold text-white">Build Input</h2>
-            <p className="mt-1 text-sm text-gray-500">Choose a trend or enter a user-owned concept.</p>
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
+              <MessageCircle size={18} className="text-blue-300" />
+              Studio Chat
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">Talk naturally. The radar, trend context, and truth guardrails fill the controls for you.</p>
           </div>
+
+          <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <StatusBadge status={radarPick ? 'active' : 'idle'} />
+              <span className="rounded-full bg-white/[0.05] px-2.5 py-1 text-xs font-semibold text-gray-300">
+                {radarPick ? `Radar pick: ${radarPick.name}` : 'Waiting for radar pick'}
+              </span>
+            </div>
+
+            <div className="max-h-[220px] space-y-3 overflow-y-auto pr-1">
+              {studioLog.map((message, index) => (
+                <div
+                  key={`${message.role}-${index}`}
+                  className={cn(
+                    'rounded-xl px-3 py-2 text-sm leading-relaxed',
+                    message.role === 'assistant'
+                      ? 'border border-blue-500/20 bg-blue-500/10 text-blue-100'
+                      : 'border border-white/[0.08] bg-black/25 text-gray-200',
+                  )}
+                >
+                  {message.text}
+                </div>
+              ))}
+            </div>
+
+            <form onSubmit={handleStudioChat} className="mt-4 space-y-3">
+              <TextArea
+                value={studioPrompt}
+                onChange={(event) => setStudioPrompt(event.target.value)}
+                placeholder="Example: make a quick TikTok from the strongest trend and make it sound natural"
+                className="min-h-[86px]"
+              />
+              <div className="grid gap-3 sm:grid-cols-3">
+                <button
+                  type="submit"
+                  disabled={busy === 'plan' || (!studioPrompt.trim() && !radarPick)}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-blue-500/30 bg-blue-500/15 px-4 py-2.5 text-sm font-semibold text-blue-100 transition-colors hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Sparkles size={16} />
+                  {busy === 'plan' ? 'Thinking...' : 'Plan it'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (radarPick) {
+                      setStudioPrompt(`Use the radar pick and make a natural short video for ${radarPick.name}`);
+                    }
+                  }}
+                  disabled={!radarPick}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Radar size={16} />
+                  Use radar pick
+                </button>
+                <button
+                  type="button"
+                  onClick={handleGenerate}
+                  disabled={!conceptReady || busy === 'generate' || !readiness?.configured}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-purple-500/30 bg-purple-500/15 px-4 py-2.5 text-sm font-semibold text-purple-100 transition-colors hover:bg-purple-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <WandSparkles size={16} />
+                  {busy === 'generate' ? 'Generating...' : 'Generate'}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <details className="rounded-xl border border-white/[0.08] bg-black/20 p-4">
+            <summary className="cursor-pointer text-sm font-semibold text-gray-200">Advanced controls</summary>
+            <div className="mt-4 space-y-5">
 
           <div className="grid grid-cols-2 gap-2">
             {[
@@ -935,6 +1096,8 @@ export default function MediaBuilder() {
               {busy === 'generate' ? 'Generating...' : `Generate ${form.type}`}
             </button>
           </div>
+            </div>
+          </details>
         </GlassCard>
 
         <div className="min-w-0 space-y-6">
