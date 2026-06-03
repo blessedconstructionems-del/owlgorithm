@@ -45,6 +45,9 @@ Important variables:
 - `OWLGORITHM_MEDIA_API_BASE_URL`: private media provider API base URL
 - `OWLGORITHM_MEDIA_IMAGE_MODEL`: private image generation model identifier
 - `OWLGORITHM_MEDIA_VIDEO_MODEL`: private video generation model identifier
+- `XAI_API_KEY` or `GROK_API_KEY`: optional Grok/xAI key alias; when present, Creator Studio defaults to `https://api.x.ai/v1`, `grok-imagine-image-quality`, and `grok-imagine-video`
+- `OWLGORITHM_SUPPORT_API_KEY`: optional Support Owl key; falls back to `XAI_API_KEY`, `GROK_API_KEY`, then `OWLGORITHM_MEDIA_API_KEY`
+- `OWLGORITHM_SUPPORT_MODEL`: Support Owl chat model, default `grok-4.3`
 - `UPLOAD_POST_API_KEY`: server-side Upload-Post master API key; never ship it in an iOS or browser bundle
 - `UPLOAD_POST_API_BASE_URL`: Upload-Post API base URL, default `https://api.upload-post.com/api`
 - `UPLOAD_POST_PROFILE_USERNAME`: optional fixed Upload-Post profile username for single-profile deployments, such as `oracle`; leave blank for per-Owlgorithm-user `owl_<userId>` profiles
@@ -146,6 +149,8 @@ The Node server serves:
 - `/api/media/plan`
 - `/api/media/generate`
 - `/api/media/video/:requestId`
+- `/api/support/readiness`
+- `/api/support/chat`
 - `/api/social/readiness`
 - `/api/social/accounts`
 - `/api/social/connect`

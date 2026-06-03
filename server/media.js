@@ -1,6 +1,9 @@
 const MEDIA_IMAGE_ENDPOINT = '/images/generations';
 const MEDIA_VIDEO_ENDPOINT = '/videos/generations';
 const MEDIA_VIDEO_STATUS_ENDPOINT = '/videos';
+const XAI_API_BASE_URL = 'https://api.x.ai/v1';
+const XAI_IMAGE_MODEL = 'grok-imagine-image-quality';
+const XAI_VIDEO_MODEL = 'grok-imagine-video';
 
 const PLATFORM_PRESETS = {
   tiktok: { label: 'TikTok', mobileLabel: 'TikTok', aspectRatio: '9:16', duration: 8 },
@@ -39,18 +42,34 @@ function intInRange(value, min, max, fallback) {
   return Math.max(min, Math.min(max, parsed));
 }
 
+function envValue(...keys) {
+  for (const key of keys) {
+    const value = `${process.env[key] || ''}`.trim();
+    if (value) return value;
+  }
+  return '';
+}
+
 function mediaConfig() {
+  const apiKey = envValue('OWLGORITHM_MEDIA_API_KEY', 'XAI_API_KEY', 'GROK_API_KEY');
+  const hasXaiAlias = Boolean(envValue('XAI_API_KEY', 'GROK_API_KEY'));
+  const baseUrl = envValue('OWLGORITHM_MEDIA_API_BASE_URL', 'XAI_API_BASE_URL', 'GROK_API_BASE_URL')
+    || (hasXaiAlias ? XAI_API_BASE_URL : '');
+  const imageModel = envValue('OWLGORITHM_MEDIA_IMAGE_MODEL', 'XAI_IMAGE_MODEL', 'GROK_IMAGE_MODEL')
+    || (hasXaiAlias ? XAI_IMAGE_MODEL : '');
+  const videoModel = envValue('OWLGORITHM_MEDIA_VIDEO_MODEL', 'XAI_VIDEO_MODEL', 'GROK_VIDEO_MODEL')
+    || (hasXaiAlias ? XAI_VIDEO_MODEL : '');
   const config = {
-    apiKey: process.env.OWLGORITHM_MEDIA_API_KEY,
-    baseUrl: process.env.OWLGORITHM_MEDIA_API_BASE_URL,
-    imageModel: process.env.OWLGORITHM_MEDIA_IMAGE_MODEL,
-    videoModel: process.env.OWLGORITHM_MEDIA_VIDEO_MODEL,
+    apiKey,
+    baseUrl: baseUrl.replace(/\/+$/, ''),
+    imageModel,
+    videoModel,
   };
   const missing = [];
-  if (!config.apiKey) missing.push('OWLGORITHM_MEDIA_API_KEY');
-  if (!config.baseUrl) missing.push('OWLGORITHM_MEDIA_API_BASE_URL');
-  if (!config.imageModel) missing.push('OWLGORITHM_MEDIA_IMAGE_MODEL');
-  if (!config.videoModel) missing.push('OWLGORITHM_MEDIA_VIDEO_MODEL');
+  if (!config.apiKey) missing.push('OWLGORITHM_MEDIA_API_KEY or XAI_API_KEY or GROK_API_KEY');
+  if (!config.baseUrl) missing.push('OWLGORITHM_MEDIA_API_BASE_URL or XAI_API_BASE_URL');
+  if (!config.imageModel) missing.push('OWLGORITHM_MEDIA_IMAGE_MODEL or XAI_IMAGE_MODEL');
+  if (!config.videoModel) missing.push('OWLGORITHM_MEDIA_VIDEO_MODEL or XAI_VIDEO_MODEL');
 
   return {
     ...config,

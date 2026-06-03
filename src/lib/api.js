@@ -116,9 +116,26 @@ function staticResponse(endpoint, options = {}) {
   if (endpoint === '/api/media/readiness') {
     return {
       configured: false,
-      missing: ['OWLGORITHM_MEDIA_API_KEY', 'OWLGORITHM_MEDIA_API_BASE_URL'],
+      missing: ['OWLGORITHM_MEDIA_API_KEY or XAI_API_KEY or GROK_API_KEY'],
       platforms: MEDIA_PLATFORMS,
       styles: MEDIA_STYLES,
+    };
+  }
+
+  if (endpoint === '/api/support/readiness') {
+    return {
+      configured: false,
+      missing: ['XAI_API_KEY or GROK_API_KEY'],
+      provider: 'xai',
+      model: null,
+    };
+  }
+
+  if (endpoint === '/api/support/chat' && method === 'POST') {
+    return {
+      reply: 'Static preview is not connected to Support Owl. Open the live Owlgorithm backend to chat.',
+      provider: 'static-preview',
+      model: null,
     };
   }
 

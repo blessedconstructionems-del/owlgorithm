@@ -47,6 +47,10 @@ import {
   normalizeSocialRequest,
   publishSocialPost,
 } from './social.js';
+import {
+  createSupportReply,
+  getSupportReadiness,
+} from './support.js';
 import { verifyFirebaseIdToken } from './firebase.js';
 
 const CACHE_DIR = getScraperCacheDir();
@@ -560,6 +564,24 @@ const server = http.createServer(async (req, res) => {
       return jsonResponse(res, getSocialReadiness());
     }
 
+    if (pathname === '/api/support/readiness' && req.method === 'GET') {
+      return jsonResponse(res, getSupportReadiness(), 200, authState.clearHeaders);
+    }
+
+    if (pathname === '/api/support/chat' && req.method === 'POST') {
+      const limit = consumeRateLimit(`support:${getClientIp(req)}`, { limit: 25, windowMs: 15 * 60 * 1000 });
+      if (!limit.allowed) {
+        return jsonResponse(res, { error: 'Too many support messages. Try again later.' }, 429, {
+          'Retry-After': String(limit.retryAfter),
+          ...authState.clearHeaders,
+        });
+      }
+
+      const body = await readJsonBody(req);
+      const reply = await createSupportReply({ body, user: authState.auth?.user || null });
+      return jsonResponse(res, reply, 200, authState.clearHeaders);
+    }
+
     const auth = requireAuth(res, req, authState);
     if (!auth) return;
 
@@ -731,6 +753,12 @@ const server = http.createServer(async (req, res) => {
             ? 404
           : err.code === 'social_provider_error'
             ? err.status || 502
+          : err.code === 'support_unavailable'
+            ? 503
+          : err.code === 'invalid_support_request'
+            ? 400
+          : err.code === 'support_provider_error'
+            ? err.status || 502
           : err.message === 'Request body too large.'
             ? 413
             : err.message === 'Invalid JSON body.'
@@ -781,6 +809,8 @@ server.listen(PORT, HOST, () => {
   console.log('  POST /api/social/post');
   console.log('  POST /api/social/schedule');
   console.log('  GET  /api/social/status/:requestId');
+  console.log('  GET  /api/support/readiness');
+  console.log('  POST /api/support/chat');
   if (SCRAPER_ENABLED) {
     console.log('  POST /api/scrape/run');
   } else {
@@ -811,6 +841,11 @@ server.listen(PORT, HOST, () => {
   const socialReadiness = getSocialReadiness();
   if (!socialReadiness.configured) {
     console.warn(`[Owlgorithm Server] Social publishing is disabled until ${socialReadiness.missing.join(', ')} is configured.`);
+  }
+
+  const supportReadiness = getSupportReadiness();
+  if (!supportReadiness.configured) {
+    console.warn(`[Owlgorithm Server] Support chat is disabled until ${supportReadiness.missing.join(', ')} is configured.`);
   }
 });
 
