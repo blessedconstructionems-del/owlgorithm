@@ -3,12 +3,14 @@ import {
   createAccountToken,
   createSessionRecord,
   createUserAccount,
+  createVerifiedUserAccount,
   deleteExpiredAccountTokens,
   deleteExpiredSessions,
   deleteSessionRecord,
   deleteSessionsByUserId,
   deleteUserAccount,
   getActiveAccountToken,
+  getAuthIdentity,
   getAuthStateBySessionId,
   getAuthStateByUserId,
   getUserRecordByEmail,
@@ -16,6 +18,7 @@ import {
   markUserEmailVerified,
   revokeAccountTokensForUser,
   touchSession,
+  upsertAuthIdentity,
   updateUserPassword,
   updateUserPreferences,
   updateUserProfile,
@@ -368,6 +371,57 @@ export function authenticateCredentials({ email, password }) {
   }
 
   return getAuthStateByUserId(record.id);
+}
+
+function firebaseEmailForClaims(claims) {
+  const normalizedEmail = normalizeEmail(claims.email);
+  if (normalizedEmail) return normalizedEmail;
+  return `${claims.uid}@phone.firebase.local`.toLowerCase();
+}
+
+function firebaseNameForClaims(claims, email) {
+  const rawName = `${claims.name || claims.phoneNumber || email.split('@')[0] || 'Owlgorithm User'}`.trim();
+  if (rawName.length >= 2) return rawName.slice(0, 60);
+  return 'Owlgorithm User';
+}
+
+export function authenticateFirebaseIdentity(claims) {
+  const uid = `${claims?.uid || ''}`.trim();
+  if (!uid) {
+    const error = new Error('Firebase identity is missing a user ID.');
+    error.code = 'invalid_token';
+    throw error;
+  }
+
+  const linked = getAuthIdentity({ provider: 'firebase', subject: uid });
+  if (linked) {
+    return getAuthStateByUserId(linked.user_id);
+  }
+
+  const email = firebaseEmailForClaims(claims);
+  const name = firebaseNameForClaims(claims, email);
+  const existing = getUserRecordByEmail(email);
+  let userId = existing?.id || null;
+
+  if (!userId) {
+    const auth = createVerifiedUserAccount({
+      email,
+      name,
+      passwordHash: hashPassword(crypto.randomBytes(32).toString('base64url')),
+    });
+    userId = auth.user.id;
+  } else if (!existing.email_verified_at) {
+    markUserEmailVerified(userId);
+  }
+
+  upsertAuthIdentity({
+    provider: 'firebase',
+    subject: uid,
+    userId,
+    emailSnapshot: email,
+  });
+
+  return getAuthStateByUserId(userId);
 }
 
 export function verifyEmailAddress({ token }) {

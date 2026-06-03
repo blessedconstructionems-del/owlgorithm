@@ -60,6 +60,8 @@ Important variables:
 - `OWLGORITHM_DEV_API_TARGET`: optional Vite proxy target for local development
 - `VITE_STATIC_PREVIEW`: set `1` only for static preview builds such as GitHub Pages, where there is no Node API
 - `VITE_IOS_CALLBACK_SCHEME`: optional native URL scheme registered by the iOS wrapper for Upload-Post `ASWebAuthenticationSession` callbacks
+- `FIREBASE_PROJECT_ID`: Firebase project ID used by the backend to verify Firebase ID tokens
+- `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_STORAGE_BUCKET`, `VITE_FIREBASE_MESSAGING_SENDER_ID`, `VITE_FIREBASE_APP_ID`, `VITE_FIREBASE_MEASUREMENT_ID`: public Firebase web config used by the browser for email, Google, and phone auth
 
 ## Local Development
 
@@ -156,7 +158,8 @@ Media planning works without provider credentials. Image and video generation st
 GitHub Pages builds set `VITE_STATIC_PREVIEW=1`, which opens the app as a read-only preview guest and returns empty live-data responses instead of requiring the Node session API.
 
 For deployment, use a persistent disk when `OWLGORITHM_DATA_DIR` points outside the repo so accounts and scraper cache survive restarts.
-Production signup and password recovery also require `OWLGORITHM_PUBLIC_URL`, `OWLGORITHM_EMAIL_FROM`, and working SMTP credentials.
+Legacy Owlgorithm email verification and password recovery require `OWLGORITHM_PUBLIC_URL`, `OWLGORITHM_EMAIL_FROM`, and working SMTP credentials.
+Firebase Auth is the production signup path for normal users. Enable Email/Password, Google, and Phone providers in Firebase Authentication, add `owlgorithm.tech` and `www.owlgorithm.tech` as authorized domains, then the app exchanges Firebase ID tokens through `/api/auth/firebase` for Owlgorithm session cookies.
 Production media generation also requires the private media provider credentials and model identifiers.
 Production social publishing uses Upload-Post profiles. The backend stores one `UPLOAD_POST_API_KEY`, creates one Upload-Post profile per Owlgorithm user, returns Upload-Post's hosted connect URL from `/api/social/connect`, reads real connected account status from `/api/social/accounts`, and only posts to platforms Upload-Post reports as connected for that user's profile. The iOS bridge contract is in [ios/OwlgorithmSocialBridge.swift](/Users/theoracle/owlgorithm-github/ios/OwlgorithmSocialBridge.swift); it opens the hosted URL with `ASWebAuthenticationSession`.
 

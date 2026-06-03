@@ -67,6 +67,19 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS account_tokens_user_type_idx
     ON account_tokens(user_id, type);
 
+  CREATE TABLE IF NOT EXISTS auth_identities (
+    provider TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    email_snapshot TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (provider, subject)
+  );
+
+  CREATE INDEX IF NOT EXISTS auth_identities_user_id_idx
+    ON auth_identities(user_id);
+
   CREATE TABLE IF NOT EXISTS social_profiles (
     user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     provider TEXT NOT NULL DEFAULT 'upload-post',
@@ -183,6 +196,15 @@ const consumeAccountTokenStmt = db.prepare(`
   WHERE id = @id AND consumed_at IS NULL
 `);
 const deleteAccountTokensByUserAndTypeStmt = db.prepare('DELETE FROM account_tokens WHERE user_id = ? AND type = ?');
+const getAuthIdentityStmt = db.prepare('SELECT * FROM auth_identities WHERE provider = ? AND subject = ?');
+const upsertAuthIdentityStmt = db.prepare(`
+  INSERT INTO auth_identities (provider, subject, user_id, email_snapshot, created_at, updated_at)
+  VALUES (@provider, @subject, @userId, @emailSnapshot, @createdAt, @updatedAt)
+  ON CONFLICT(provider, subject) DO UPDATE SET
+    user_id = excluded.user_id,
+    email_snapshot = excluded.email_snapshot,
+    updated_at = excluded.updated_at
+`);
 const getSocialProfileByUserIdStmt = db.prepare('SELECT * FROM social_profiles WHERE user_id = ?');
 const upsertSocialProfileStmt = db.prepare(`
   INSERT INTO social_profiles (
@@ -241,7 +263,7 @@ const upsertPreferencesStmt = db.prepare(`
     updated_at = excluded.updated_at
 `);
 
-const createUserTx = db.transaction(({ email, name, passwordHash }) => {
+const createUserTx = db.transaction(({ email, name, passwordHash, emailVerifiedAt = null }) => {
   const now = new Date().toISOString();
   const userId = crypto.randomUUID();
 
@@ -250,7 +272,7 @@ const createUserTx = db.transaction(({ email, name, passwordHash }) => {
     email,
     name,
     passwordHash,
-    emailVerifiedAt: null,
+    emailVerifiedAt,
     createdAt: now,
     updatedAt: now,
   });
@@ -285,6 +307,29 @@ export function createUserAccount({ email, name, passwordHash }) {
       email: email.trim().toLowerCase(),
       name: name.trim(),
       passwordHash,
+      emailVerifiedAt: null,
+    });
+  } catch (error) {
+    if (`${error.code || ''}`.startsWith('SQLITE_CONSTRAINT')) {
+      const duplicate = new Error('An account with that email already exists.');
+      duplicate.code = 'duplicate_email';
+      throw duplicate;
+    }
+
+    throw error;
+  }
+
+  return getAuthStateByUserId(userId);
+}
+
+export function createVerifiedUserAccount({ email, name, passwordHash }) {
+  let userId;
+  try {
+    userId = createUserTx({
+      email: email.trim().toLowerCase(),
+      name: name.trim(),
+      passwordHash,
+      emailVerifiedAt: new Date().toISOString(),
     });
   } catch (error) {
     if (`${error.code || ''}`.startsWith('SQLITE_CONSTRAINT')) {
@@ -424,6 +469,22 @@ export function consumeAccountToken(tokenId) {
 
 export function revokeAccountTokensForUser({ userId, type }) {
   deleteAccountTokensByUserAndTypeStmt.run(userId, type);
+}
+
+export function getAuthIdentity({ provider, subject }) {
+  return getAuthIdentityStmt.get(provider, subject) || null;
+}
+
+export function upsertAuthIdentity({ provider, subject, userId, emailSnapshot = null }) {
+  const now = new Date().toISOString();
+  upsertAuthIdentityStmt.run({
+    provider,
+    subject,
+    userId,
+    emailSnapshot,
+    createdAt: now,
+    updatedAt: now,
+  });
 }
 
 export function getSocialProfileByUserId(userId) {

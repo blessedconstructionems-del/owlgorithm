@@ -8,6 +8,7 @@ import path from 'path';
 import { getScraperCacheDir, loadProjectEnv, projectRoot } from '../config/env.js';
 import {
   authenticateCredentials,
+  authenticateFirebaseIdentity,
   clearSessionCookie,
   consumeRateLimit,
   createAccount,
@@ -46,6 +47,7 @@ import {
   normalizeSocialRequest,
   publishSocialPost,
 } from './social.js';
+import { verifyFirebaseIdToken } from './firebase.js';
 
 const CACHE_DIR = getScraperCacheDir();
 const TRENDS_FILE = path.join(CACHE_DIR, 'trends.json');
@@ -391,6 +393,21 @@ const server = http.createServer(async (req, res) => {
       return jsonResponse(res, authPayload(auth), 200, { 'Set-Cookie': session.cookie });
     }
 
+    if (pathname === '/api/auth/firebase' && req.method === 'POST') {
+      const limit = consumeRateLimit(`firebase-login:${getClientIp(req)}`, { limit: 30, windowMs: 15 * 60 * 1000 });
+      if (!limit.allowed) {
+        return jsonResponse(res, { error: 'Too many sign-in attempts. Try again later.' }, 429, {
+          'Retry-After': String(limit.retryAfter),
+        });
+      }
+
+      const body = await readJsonBody(req);
+      const claims = await verifyFirebaseIdToken(body.idToken);
+      const auth = authenticateFirebaseIdentity(claims);
+      const session = createAuthenticatedSession(req, auth);
+      return jsonResponse(res, authPayload(auth), 200, { 'Set-Cookie': session.cookie });
+    }
+
     if (pathname === '/api/auth/verification/resend' && req.method === 'POST') {
       const limit = consumeRateLimit(`verify-resend:${getClientIp(req)}`, { limit: 5, windowMs: 60 * 60 * 1000 });
       if (!limit.allowed) {
@@ -694,8 +711,10 @@ const server = http.createServer(async (req, res) => {
         ? 403
       : err.code === 'invalid_credentials' || err.code === 'invalid_password'
         ? 400
-        : err.code === 'invalid_token'
-          ? 400
+          : err.code === 'invalid_token'
+            ? 400
+          : err.code === 'firebase_unavailable'
+            ? 503
           : err.code === 'email_unavailable'
             ? 503
           : err.code === 'media_unavailable'
@@ -738,6 +757,7 @@ server.listen(PORT, HOST, () => {
   console.log('  GET  /api/auth/session');
   console.log('  POST /api/auth/signup');
   console.log('  POST /api/auth/login');
+  console.log('  POST /api/auth/firebase');
   console.log('  POST /api/auth/verification/resend');
   console.log('  POST /api/auth/verify-email');
   console.log('  POST /api/auth/password-reset/request');

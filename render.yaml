@@ -26,6 +26,22 @@ services:
         value: /var/data/owlgorithm
       - key: ENABLE_SCRAPER
         value: "true"
+      - key: FIREBASE_PROJECT_ID
+        value: owlgorithm-fdc26
+      - key: VITE_FIREBASE_API_KEY
+        value: AIzaSyAbu0mnx7hBMi45XBt4tQBlk6IuL1waFqo
+      - key: VITE_FIREBASE_AUTH_DOMAIN
+        value: owlgorithm-fdc26.firebaseapp.com
+      - key: VITE_FIREBASE_PROJECT_ID
+        value: owlgorithm-fdc26
+      - key: VITE_FIREBASE_STORAGE_BUCKET
+        value: owlgorithm-fdc26.firebasestorage.app
+      - key: VITE_FIREBASE_MESSAGING_SENDER_ID
+        value: "1015807657200"
+      - key: VITE_FIREBASE_APP_ID
+        value: 1:1015807657200:web:aa5036de883acdc3eeae35
+      - key: VITE_FIREBASE_MEASUREMENT_ID
+        value: G-NDDK160T31
       - key: OWLGORITHM_EMAIL_FROM
         sync: false
       - key: OWLGORITHM_SMTP_HOST

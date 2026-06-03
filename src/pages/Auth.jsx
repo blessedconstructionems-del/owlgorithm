@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Mail, Phone, ShieldCheck } from 'lucide-react';
 import AuthShell from '@/components/auth/AuthShell';
 import { useApp } from '@/context/AppContext';
 
@@ -19,7 +20,7 @@ function InputField({ label, type = 'text', value, onChange, autoComplete, place
   );
 }
 
-function Notice({ tone = 'success', message, previewUrl }) {
+function Notice({ tone = 'success', message }) {
   if (!message) return null;
 
   const toneClasses = tone === 'warning'
@@ -28,173 +29,140 @@ function Notice({ tone = 'success', message, previewUrl }) {
 
   return (
     <div className={`rounded-lg border px-3 py-3 text-sm ${toneClasses}`}>
-      <p>{message}</p>
-      {previewUrl ? (
-        <a
-          href={previewUrl}
-          className="mt-2 inline-flex text-xs font-semibold text-cyan-200 hover:text-cyan-100"
-        >
-          Open email link
-        </a>
-      ) : null}
+      {message}
     </div>
   );
 }
 
 export default function AuthPage() {
   const {
-    signUp,
-    login,
-    resendVerification,
-    requestPasswordReset,
     authBusy,
+    firebaseAuthEnabled,
+    continueWithEmail,
+    continueWithGoogle,
+    sendPhoneCode,
+    confirmPhoneCode,
+    requestFirebasePasswordReset,
   } = useApp();
-  const [mode, setMode] = useState('signup');
+
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [phone, setPhone] = useState('');
+  const [phoneCode, setPhoneCode] = useState('');
+  const [phoneCodeSent, setPhoneCodeSent] = useState(false);
   const [localError, setLocalError] = useState(null);
   const [notice, setNotice] = useState(null);
-  const [verificationEmail, setVerificationEmail] = useState('');
 
-  const heading = useMemo(() => (
-    mode === 'signup'
-      ? 'Create your account'
-      : mode === 'forgot'
-        ? 'Reset your password'
-        : 'Sign in to Owlgorithm'
-  ), [mode]);
-
-  function switchMode(nextMode) {
-    setMode(nextMode);
+  function clearMessages() {
     setLocalError(null);
     setNotice(null);
   }
 
-  async function handleSubmit(event) {
+  async function handleEmailContinue(event) {
     event.preventDefault();
-    setLocalError(null);
-    setNotice(null);
+    clearMessages();
 
     const normalizedEmail = email.trim().toLowerCase();
-
-    if (mode === 'signup' && password !== confirmPassword) {
-      setLocalError('Passwords do not match.');
+    if (!normalizedEmail || !password) {
+      setLocalError('Enter your email and password.');
       return;
     }
 
-    if (mode === 'forgot') {
-      const result = await requestPasswordReset({ email: normalizedEmail });
-      if (!result.ok) {
-        setLocalError(result.error.message);
-        return;
-      }
-
-      setNotice({
-        tone: 'success',
-        message: 'If an account matches that email, a reset link has been sent.',
-        previewUrl: result.data.previewUrl,
-      });
-      return;
-    }
-
-    const action = mode === 'signup' ? signUp : login;
-    const payload = mode === 'signup'
-      ? { name, email: normalizedEmail, password }
-      : { email: normalizedEmail, password };
-
-    const result = await action(payload);
-    if (result.ok) {
-      if (mode === 'signup') {
-        setVerificationEmail(normalizedEmail);
-        setNotice({
-          tone: 'success',
-          message: `Verify ${normalizedEmail} to finish setting up your account.`,
-          previewUrl: result.data.previewUrl,
-        });
-        setMode('login');
-        setName('');
-        setPassword('');
-        setConfirmPassword('');
-      }
-      return;
-    }
-
-    if (result.error.payload?.code === 'email_unverified') {
-      setVerificationEmail(normalizedEmail);
-      setNotice({
-        tone: 'warning',
-        message: 'Verify your email before signing in.',
-        previewUrl: result.error.payload?.previewUrl,
-      });
-      return;
-    }
-
-    setLocalError(result.error.message);
+    const result = await continueWithEmail({
+      name,
+      email: normalizedEmail,
+      password,
+    });
+    if (!result.ok) setLocalError(result.error.message);
   }
 
-  async function handleResendVerification() {
-    const targetEmail = (verificationEmail || email).trim().toLowerCase();
-    if (!targetEmail) {
-      setLocalError('Enter your email address first.');
+  async function handleGoogleContinue() {
+    clearMessages();
+    const result = await continueWithGoogle();
+    if (!result.ok) setLocalError(result.error.message);
+  }
+
+  async function handleSendPhoneCode() {
+    clearMessages();
+    const normalizedPhone = phone.trim();
+    if (!normalizedPhone.startsWith('+')) {
+      setLocalError('Enter a phone number with country code, like +12085551234.');
       return;
     }
 
-    setLocalError(null);
-    const result = await resendVerification({ email: targetEmail });
+    const result = await sendPhoneCode(normalizedPhone);
     if (!result.ok) {
       setLocalError(result.error.message);
       return;
     }
 
-    setVerificationEmail(targetEmail);
-    setNotice({
-      tone: 'success',
-      message: `A fresh verification link was sent to ${targetEmail}.`,
-      previewUrl: result.data.previewUrl,
-    });
+    setPhoneCodeSent(true);
+    setNotice('Verification code sent.');
+  }
+
+  async function handleConfirmPhoneCode() {
+    clearMessages();
+    if (!phoneCode.trim()) {
+      setLocalError('Enter the phone verification code.');
+      return;
+    }
+
+    const result = await confirmPhoneCode(phoneCode.trim());
+    if (!result.ok) setLocalError(result.error.message);
+  }
+
+  async function handlePasswordReset() {
+    clearMessages();
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) {
+      setLocalError('Enter your email address first.');
+      return;
+    }
+
+    const result = await requestFirebasePasswordReset({ email: normalizedEmail });
+    if (!result.ok) {
+      setLocalError(result.error.message);
+      return;
+    }
+
+    setNotice('Password reset email sent if that account exists.');
   }
 
   return (
     <AuthShell
-      title="Track live signals with a verified account."
-      description="Create an account to save your workspace settings, verify ownership of your email, and recover access without support intervention."
+      title="Continue to Owlgorithm."
+      description="New users are created automatically the first time they continue. Returning users land in the same workspace."
     >
-      <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/25 p-1">
+      <div className="space-y-5">
+        <div>
+          <h2 className="text-2xl font-semibold text-white">Sign in or create account</h2>
+          <p className="mt-2 text-sm text-gray-400">
+            Use email, Google, or phone. Owlgorithm creates your workspace on first sign-in.
+          </p>
+        </div>
+
+        {!firebaseAuthEnabled ? (
+          <Notice tone="warning" message="Firebase auth is not configured for this build." />
+        ) : null}
+
         <button
           type="button"
-          onClick={() => switchMode('signup')}
-          className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-            mode === 'signup' ? 'bg-cyan-500/15 text-white' : 'text-gray-400 hover:text-gray-200'
-          }`}
+          onClick={handleGoogleContinue}
+          disabled={authBusy || !firebaseAuthEnabled}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.06] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-60"
         >
-          Sign up
+          <ShieldCheck size={16} />
+          Continue with Google
         </button>
-        <button
-          type="button"
-          onClick={() => switchMode('login')}
-          className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-            mode === 'login' ? 'bg-cyan-500/15 text-white' : 'text-gray-400 hover:text-gray-200'
-          }`}
-        >
-          Sign in
-        </button>
-      </div>
 
-      <div className="mt-6">
-        <h2 className="text-2xl font-semibold text-white">{heading}</h2>
-        <p className="mt-2 text-sm text-gray-400">
-          {mode === 'signup'
-            ? 'Use your email and a password with at least one letter and one number.'
-            : mode === 'forgot'
-              ? 'Enter the verified email address tied to your account.'
-              : 'Use the email and password you signed up with.'}
-        </p>
-      </div>
+        <div className="flex items-center gap-3 text-xs uppercase tracking-[0.14em] text-gray-600">
+          <span className="h-px flex-1 bg-white/10" />
+          Email
+          <span className="h-px flex-1 bg-white/10" />
+        </div>
 
-      <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
-        {mode === 'signup' ? (
+        <form className="space-y-4" onSubmit={handleEmailContinue}>
           <InputField
             label="Name"
             value={name}
@@ -202,40 +170,90 @@ export default function AuthPage() {
             autoComplete="name"
             placeholder="Avery Johnson"
           />
-        ) : null}
+          <InputField
+            label="Email"
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            autoComplete="email"
+            placeholder="you@example.com"
+          />
+          <InputField
+            label="Password"
+            type="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            autoComplete="current-password"
+            placeholder="Your Firebase password"
+          />
 
-        <InputField
-          label="Email"
-          type="email"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          autoComplete="email"
-          placeholder="you@example.com"
-        />
+          <button
+            type="submit"
+            disabled={authBusy || !firebaseAuthEnabled}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-[#071019] transition-colors hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <Mail size={16} />
+            {authBusy ? 'Working...' : 'Continue with email'}
+          </button>
 
-        {mode !== 'forgot' ? (
-          <>
-            <InputField
-              label="Password"
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-              placeholder="At least 10 characters"
-            />
+          <button
+            type="button"
+            onClick={handlePasswordReset}
+            disabled={authBusy || !firebaseAuthEnabled}
+            className="w-full rounded-lg border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Send password reset
+          </button>
+        </form>
 
-            {mode === 'signup' ? (
+        <div className="flex items-center gap-3 text-xs uppercase tracking-[0.14em] text-gray-600">
+          <span className="h-px flex-1 bg-white/10" />
+          Phone
+          <span className="h-px flex-1 bg-white/10" />
+        </div>
+
+        <div className="space-y-4">
+          <InputField
+            label="Phone number"
+            type="tel"
+            value={phone}
+            onChange={(event) => setPhone(event.target.value)}
+            autoComplete="tel"
+            placeholder="+12085551234"
+          />
+
+          <button
+            type="button"
+            onClick={handleSendPhoneCode}
+            disabled={authBusy || !firebaseAuthEnabled}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <Phone size={16} />
+            {phoneCodeSent ? 'Send another code' : 'Send phone code'}
+          </button>
+
+          {phoneCodeSent ? (
+            <>
               <InputField
-                label="Confirm password"
-                type="password"
-                value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.target.value)}
-                autoComplete="new-password"
-                placeholder="Repeat your password"
+                label="Verification code"
+                value={phoneCode}
+                onChange={(event) => setPhoneCode(event.target.value)}
+                autoComplete="one-time-code"
+                placeholder="123456"
               />
-            ) : null}
-          </>
-        ) : null}
+              <button
+                type="button"
+                onClick={handleConfirmPhoneCode}
+                disabled={authBusy || !firebaseAuthEnabled}
+                className="w-full rounded-lg bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-[#071019] transition-colors hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Continue with phone
+              </button>
+            </>
+          ) : null}
+        </div>
+
+        <div id="firebase-recaptcha-container" />
 
         {localError ? (
           <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-200">
@@ -243,55 +261,8 @@ export default function AuthPage() {
           </div>
         ) : null}
 
-        {notice ? (
-          <Notice tone={notice.tone} message={notice.message} previewUrl={notice.previewUrl} />
-        ) : null}
-
-        <button
-          type="submit"
-          disabled={authBusy}
-          className="w-full rounded-lg bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-[#071019] transition-colors hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {authBusy
-            ? 'Working...'
-            : mode === 'signup'
-              ? 'Create account'
-              : mode === 'forgot'
-                ? 'Send reset link'
-                : 'Sign in'}
-        </button>
-
-        {mode === 'login' ? (
-          <button
-            type="button"
-            onClick={() => switchMode('forgot')}
-            className="w-full rounded-lg border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-white/[0.06]"
-          >
-            Forgot password
-          </button>
-        ) : null}
-
-        {verificationEmail ? (
-          <button
-            type="button"
-            onClick={handleResendVerification}
-            disabled={authBusy}
-            className="w-full rounded-lg border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Resend verification email
-          </button>
-        ) : null}
-
-        {mode === 'forgot' ? (
-          <button
-            type="button"
-            onClick={() => switchMode('login')}
-            className="w-full rounded-lg border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-white/[0.06]"
-          >
-            Back to sign in
-          </button>
-        ) : null}
-      </form>
+        {notice ? <Notice message={notice} /> : null}
+      </div>
 
       <div className="mt-6 text-xs text-gray-500">
         By continuing, you agree to the{' '}

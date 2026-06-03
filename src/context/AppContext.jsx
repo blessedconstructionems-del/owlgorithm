@@ -1,6 +1,15 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { STATIC_PREVIEW, apiRequest } from '@/lib/api';
 import { resetTrendsStore } from '@/data/trends';
+import {
+  confirmFirebasePhoneCode,
+  continueWithFirebaseEmail,
+  continueWithFirebaseGoogle,
+  firebaseAuthConfigured,
+  firebaseErrorMessage,
+  sendFirebasePasswordReset,
+  sendFirebasePhoneCode,
+} from '@/lib/firebaseAuth';
 
 const AppContext = createContext(null);
 const DEFAULT_ENVIRONMENT = '/snowy-owl.mp4';
@@ -159,6 +168,89 @@ export function AppProvider({ children }) {
     return runAuthMutation('/api/auth/password-reset/confirm', payload, { applySessionResult: true });
   }, [runAuthMutation]);
 
+  const continueWithEmail = useCallback(async (payload) => {
+    setAuthBusy(true);
+    setAuthError(null);
+
+    try {
+      const data = await continueWithFirebaseEmail(payload);
+      applySession(data);
+      return { ok: true, data };
+    } catch (error) {
+      const message = firebaseErrorMessage(error);
+      setAuthError(message);
+      return { ok: false, error: { ...error, message } };
+    } finally {
+      setAuthBusy(false);
+    }
+  }, [applySession]);
+
+  const continueWithGoogle = useCallback(async () => {
+    setAuthBusy(true);
+    setAuthError(null);
+
+    try {
+      const data = await continueWithFirebaseGoogle();
+      applySession(data);
+      return { ok: true, data };
+    } catch (error) {
+      const message = firebaseErrorMessage(error);
+      setAuthError(message);
+      return { ok: false, error: { ...error, message } };
+    } finally {
+      setAuthBusy(false);
+    }
+  }, [applySession]);
+
+  const sendPhoneCode = useCallback(async (phoneNumber) => {
+    setAuthBusy(true);
+    setAuthError(null);
+
+    try {
+      await sendFirebasePhoneCode(phoneNumber);
+      return { ok: true };
+    } catch (error) {
+      const message = firebaseErrorMessage(error);
+      setAuthError(message);
+      return { ok: false, error: { ...error, message } };
+    } finally {
+      setAuthBusy(false);
+    }
+  }, []);
+
+  const confirmPhoneCode = useCallback(async (code) => {
+    setAuthBusy(true);
+    setAuthError(null);
+
+    try {
+      const data = await confirmFirebasePhoneCode(code);
+      applySession(data);
+      return { ok: true, data };
+    } catch (error) {
+      const message = firebaseErrorMessage(error);
+      setAuthError(message);
+      return { ok: false, error: { ...error, message } };
+    } finally {
+      setAuthBusy(false);
+    }
+  }, [applySession]);
+
+  const requestFirebasePasswordReset = useCallback(async ({ email }) => {
+    setAuthBusy(true);
+    setAuthError(null);
+
+    try {
+      await sendFirebasePasswordReset(email);
+      return { ok: true };
+    } catch (error) {
+      const message = firebaseErrorMessage(error);
+      setAuthError(message);
+      return { ok: false, error: { ...error, message } };
+    } finally {
+      setAuthBusy(false);
+    }
+  }, []);
+
   const logout = useCallback(async () => {
     if (STATIC_PREVIEW) {
       const preview = buildPreviewState();
@@ -286,10 +378,16 @@ export function AppProvider({ children }) {
     environment: preferences.environment,
     notifications,
     refreshSession,
+    firebaseAuthEnabled: firebaseAuthConfigured(),
     signUp,
     login,
+    continueWithEmail,
+    continueWithGoogle,
+    sendPhoneCode,
+    confirmPhoneCode,
     resendVerification,
     requestPasswordReset,
+    requestFirebasePasswordReset,
     verifyEmail,
     resetPassword,
     logout,
@@ -303,11 +401,15 @@ export function AppProvider({ children }) {
     authBusy,
     authError,
     authStatus,
+    confirmPhoneCode,
+    continueWithEmail,
+    continueWithGoogle,
     deleteAccount,
     login,
     markNotificationRead,
     logout,
     notifications,
+    requestFirebasePasswordReset,
     requestPasswordReset,
     preferences.environment,
     preferences.sidebarCollapsed,
@@ -315,6 +417,7 @@ export function AppProvider({ children }) {
     resendVerification,
     resetPassword,
     setEnvironment,
+    sendPhoneCode,
     signUp,
     toggleSidebar,
     updateProfile,
