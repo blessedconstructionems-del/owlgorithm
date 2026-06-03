@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 
 const ROUTE_TITLES = {
   '/': 'Dashboard',
+  '/post-now': 'Post Now',
   '/revenue-god-mode': 'Revenue God Mode',
   '/trends': 'Trend Radar',
   '/scheduler': 'Scheduler',
@@ -16,8 +17,8 @@ const ROUTE_TITLES = {
   '/truth-radar': 'Truth Radar',
   '/strategy': 'Strategy',
   '/night-watch': 'Night Watch',
-  '/platforms': 'Platforms',
-  '/media': 'Creator Studio',
+  '/platforms': 'Connect Socials',
+  '/media': 'Creator Studio Pro',
   '/wellness': 'Wellness',
   '/settings': 'Settings',
 };

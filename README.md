@@ -28,7 +28,7 @@ Copy [.env.example](/Users/theoracle/owlgorithm-github/.env.example) to `.env` o
 Important variables:
 
 - `OWLGORITHM_PORT`: API/server port, default `3847`
-- `OWLGORITHM_HOST`: server bind host, default `127.0.0.1`
+- `OWLGORITHM_HOST`: server bind host, default `127.0.0.1` locally and `0.0.0.0` when a platform `PORT` is present
 - `OWLGORITHM_BASE_PATH`: optional subpath for the built client, default `/`
 - `OWLGORITHM_PUBLIC_URL`: public origin used in verification and password-reset emails
 - `OWLGORITHM_DATA_DIR`: optional runtime data directory for the SQLite database and scraper cache
@@ -45,23 +45,21 @@ Important variables:
 - `OWLGORITHM_MEDIA_API_BASE_URL`: private media provider API base URL
 - `OWLGORITHM_MEDIA_IMAGE_MODEL`: private image generation model identifier
 - `OWLGORITHM_MEDIA_VIDEO_MODEL`: private video generation model identifier
-- `OWLGORITHM_SOCIAL_API_KEY`: private social publishing provider API key
-- `OWLGORITHM_SOCIAL_PROFILE`: default social publishing profile/account identifier
-- `OWLGORITHM_SOCIAL_API_BASE_URL`: private social publishing provider API base URL
-- `OWLGORITHM_SOCIAL_AUTH_SCHEME`: optional API auth scheme, default `Apikey`
-- `OWLGORITHM_SOCIAL_TIMEZONE`: optional scheduler timezone, default `America/New_York`
-- `OWLGORITHM_SOCIAL_FACEBOOK_PAGE_ID`: optional Facebook page target for publishing
-- `OWLGORITHM_SOCIAL_LINKEDIN_PAGE_ID`: optional LinkedIn organization target for publishing
-- `OWLGORITHM_SOCIAL_PINTEREST_BOARD_ID`: required when posting to Pinterest
-- `OWLGORITHM_SOCIAL_REDDIT_SUBREDDIT`: required when posting to Reddit
-- `OWLGORITHM_SOCIAL_GOOGLE_BUSINESS_LOCATION_ID`: optional Google Business location target
-- `OWLGORITHM_SOCIAL_UPLOAD_ENDPOINT`: optional provider video endpoint path
-- `OWLGORITHM_SOCIAL_PHOTO_ENDPOINT`: optional provider photo endpoint path
-- `OWLGORITHM_SOCIAL_TEXT_ENDPOINT`: optional provider text endpoint path
-- `OWLGORITHM_SOCIAL_STATUS_ENDPOINT`: optional provider status endpoint path
+- `UPLOAD_POST_API_KEY`: server-side Upload-Post master API key; never ship it in an iOS or browser bundle
+- `UPLOAD_POST_API_BASE_URL`: Upload-Post API base URL, default `https://api.upload-post.com/api`
+- `UPLOAD_POST_PROFILE_USERNAME`: optional fixed Upload-Post profile username for single-profile deployments, such as `oracle`; leave blank for per-Owlgorithm-user `owl_<userId>` profiles
+- `UPLOAD_POST_AUTH_SCHEME`: optional API auth scheme, default `Apikey`
+- `UPLOAD_POST_TIMEZONE`: optional scheduler timezone, default `America/New_York`
+- `UPLOAD_POST_CONNECT_PLATFORMS`: hosted connect page platforms, default `tiktok,instagram,linkedin,facebook,x,threads,google_business`
+- `UPLOAD_POST_FACEBOOK_PAGE_ID`: optional Facebook page target for publishing
+- `UPLOAD_POST_LINKEDIN_PAGE_ID`: optional LinkedIn organization target for publishing
+- `UPLOAD_POST_PINTEREST_BOARD_ID`: required when posting to Pinterest
+- `UPLOAD_POST_REDDIT_SUBREDDIT`: required when posting to Reddit
+- `UPLOAD_POST_GOOGLE_BUSINESS_LOCATION_ID`: optional Google Business location target
 - `VITE_API_BASE_URL`: optional frontend override; leave blank for same-origin requests
 - `OWLGORITHM_DEV_API_TARGET`: optional Vite proxy target for local development
 - `VITE_STATIC_PREVIEW`: set `1` only for static preview builds such as GitHub Pages, where there is no Node API
+- `VITE_IOS_CALLBACK_SCHEME`: optional native URL scheme registered by the iOS wrapper for Upload-Post `ASWebAuthenticationSession` callbacks
 
 ## Local Development
 
@@ -148,6 +146,7 @@ The Node server serves:
 - `/api/media/video/:requestId`
 - `/api/social/readiness`
 - `/api/social/accounts`
+- `/api/social/connect`
 - `/api/social/post`
 - `/api/social/schedule`
 - `/api/social/status/:requestId`
@@ -159,7 +158,7 @@ GitHub Pages builds set `VITE_STATIC_PREVIEW=1`, which opens the app as a read-o
 For deployment, use a persistent disk when `OWLGORITHM_DATA_DIR` points outside the repo so accounts and scraper cache survive restarts.
 Production signup and password recovery also require `OWLGORITHM_PUBLIC_URL`, `OWLGORITHM_EMAIL_FROM`, and working SMTP credentials.
 Production media generation also requires the private media provider credentials and model identifiers.
-Production social publishing supports TikTok, Instagram, YouTube, LinkedIn, Facebook, X, Threads, Pinterest, Reddit, Bluesky, and Google Business through the generic `OWLGORITHM_SOCIAL_*` settings. Keep vendor-specific identifiers server-side only.
+Production social publishing uses Upload-Post profiles. The backend stores one `UPLOAD_POST_API_KEY`, creates one Upload-Post profile per Owlgorithm user, returns Upload-Post's hosted connect URL from `/api/social/connect`, reads real connected account status from `/api/social/accounts`, and only posts to platforms Upload-Post reports as connected for that user's profile. The iOS bridge contract is in [ios/OwlgorithmSocialBridge.swift](/Users/theoracle/owlgorithm-github/ios/OwlgorithmSocialBridge.swift); it opens the hosted URL with `ASWebAuthenticationSession`.
 
 ## Verification
 

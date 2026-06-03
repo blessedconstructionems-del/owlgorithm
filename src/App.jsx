@@ -4,9 +4,11 @@ import AppLayout from './components/layout/AppLayout';
 import { useApp } from './context/AppContext';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
+const PostNow = lazy(() => import('./pages/PostNow'));
 const TrendRadar = lazy(() => import('./pages/TrendRadar'));
 const NightWatch = lazy(() => import('./pages/NightWatch'));
 const MediaBuilder = lazy(() => import('./pages/MediaBuilder'));
+const SocialConnect = lazy(() => import('./pages/SocialConnect'));
 const FeatureModule = lazy(() => import('./pages/FeatureModule'));
 const Settings = lazy(() => import('./pages/Settings'));
 const AuthPage = lazy(() => import('./pages/Auth'));
@@ -92,6 +94,7 @@ function App() {
       </Route>
       <Route element={<ProtectedLayout />}>
         <Route path="/" element={<RoutedPage component={Dashboard} />} />
+        <Route path="/post-now" element={<RoutedPage component={PostNow} />} />
         <Route path="/trends" element={<RoutedPage component={TrendRadar} />} />
         <Route path="/night-watch" element={<RoutedPage component={NightWatch} />} />
         <Route path="/media" element={<RoutedPage component={MediaBuilder} />} />
@@ -103,7 +106,7 @@ function App() {
         <Route path="/leaderboard" element={<RoutedPage component={FeatureModule} moduleId="leaderboard" />} />
         <Route path="/truth-radar" element={<RoutedPage component={FeatureModule} moduleId="truthRadar" />} />
         <Route path="/strategy" element={<RoutedPage component={FeatureModule} moduleId="strategy" />} />
-        <Route path="/platforms" element={<RoutedPage component={FeatureModule} moduleId="platforms" />} />
+        <Route path="/platforms" element={<RoutedPage component={SocialConnect} />} />
         <Route path="/wellness" element={<RoutedPage component={FeatureModule} moduleId="wellness" />} />
       </Route>
       <Route path="*" element={<Navigate replace to="/" />} />

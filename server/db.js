@@ -66,6 +66,19 @@ db.exec(`
     ON account_tokens(type, token_hash, expires_at);
   CREATE INDEX IF NOT EXISTS account_tokens_user_type_idx
     ON account_tokens(user_id, type);
+
+  CREATE TABLE IF NOT EXISTS social_profiles (
+    user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    provider TEXT NOT NULL DEFAULT 'upload-post',
+    profile_username TEXT NOT NULL UNIQUE,
+    connection_snapshot TEXT NOT NULL DEFAULT '{}',
+    last_synced_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS social_profiles_provider_idx
+    ON social_profiles(provider);
 `);
 
 function avatarForName(name) {
@@ -90,6 +103,28 @@ function serializeAuthState(row) {
       environment: row.environment || DEFAULT_ENVIRONMENT,
       sidebarCollapsed: Boolean(row.sidebar_collapsed),
     },
+  };
+}
+
+function parseJsonSnapshot(value) {
+  try {
+    return JSON.parse(value || '{}');
+  } catch {
+    return {};
+  }
+}
+
+function serializeSocialProfile(row) {
+  if (!row) return null;
+
+  return {
+    userId: row.user_id,
+    provider: row.provider,
+    profileUsername: row.profile_username,
+    connectionSnapshot: parseJsonSnapshot(row.connection_snapshot),
+    lastSyncedAt: row.last_synced_at || null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }
 
@@ -148,6 +183,33 @@ const consumeAccountTokenStmt = db.prepare(`
   WHERE id = @id AND consumed_at IS NULL
 `);
 const deleteAccountTokensByUserAndTypeStmt = db.prepare('DELETE FROM account_tokens WHERE user_id = ? AND type = ?');
+const getSocialProfileByUserIdStmt = db.prepare('SELECT * FROM social_profiles WHERE user_id = ?');
+const upsertSocialProfileStmt = db.prepare(`
+  INSERT INTO social_profiles (
+    user_id,
+    provider,
+    profile_username,
+    connection_snapshot,
+    last_synced_at,
+    created_at,
+    updated_at
+  )
+  VALUES (
+    @userId,
+    @provider,
+    @profileUsername,
+    @connectionSnapshot,
+    @lastSyncedAt,
+    @createdAt,
+    @updatedAt
+  )
+  ON CONFLICT(user_id) DO UPDATE SET
+    provider = excluded.provider,
+    profile_username = excluded.profile_username,
+    connection_snapshot = excluded.connection_snapshot,
+    last_synced_at = excluded.last_synced_at,
+    updated_at = excluded.updated_at
+`);
 const updateUserProfileStmt = db.prepare(`
   UPDATE users
   SET
@@ -362,6 +424,31 @@ export function consumeAccountToken(tokenId) {
 
 export function revokeAccountTokensForUser({ userId, type }) {
   deleteAccountTokensByUserAndTypeStmt.run(userId, type);
+}
+
+export function getSocialProfileByUserId(userId) {
+  return serializeSocialProfile(getSocialProfileByUserIdStmt.get(userId));
+}
+
+export function upsertSocialProfile({
+  userId,
+  provider = 'upload-post',
+  profileUsername,
+  connectionSnapshot = {},
+  lastSyncedAt = null,
+}) {
+  const now = new Date().toISOString();
+  upsertSocialProfileStmt.run({
+    userId,
+    provider,
+    profileUsername,
+    connectionSnapshot: JSON.stringify(connectionSnapshot || {}),
+    lastSyncedAt,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  return getSocialProfileByUserId(userId);
 }
 
 export function deleteUserAccount(userId) {

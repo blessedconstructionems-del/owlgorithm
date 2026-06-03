@@ -4,17 +4,17 @@ export const STATIC_PREVIEW = ['1', 'true', 'yes'].includes(
 );
 
 const SOCIAL_PLATFORMS = [
-  { id: 'tiktok', label: 'TikTok', supports: ['video', 'image'], defaultFor: ['video', 'image'], targetConfigured: true, requiredTargetEnv: null },
-  { id: 'instagram', label: 'Instagram', supports: ['video', 'image'], defaultFor: ['video', 'image'], targetConfigured: true, requiredTargetEnv: null },
-  { id: 'youtube', label: 'YouTube', supports: ['video'], defaultFor: ['video'], targetConfigured: true, requiredTargetEnv: null },
-  { id: 'linkedin', label: 'LinkedIn', supports: ['video', 'image', 'text'], defaultFor: ['video', 'image', 'text'], targetConfigured: false, requiredTargetEnv: null },
-  { id: 'facebook', label: 'Facebook', supports: ['video', 'image', 'text'], defaultFor: ['video', 'image', 'text'], targetConfigured: false, requiredTargetEnv: null },
-  { id: 'x', label: 'X', supports: ['video', 'image', 'text'], defaultFor: ['video', 'image', 'text'], targetConfigured: true, requiredTargetEnv: null },
-  { id: 'threads', label: 'Threads', supports: ['video', 'image', 'text'], defaultFor: ['video', 'image', 'text'], targetConfigured: true, requiredTargetEnv: null },
-  { id: 'pinterest', label: 'Pinterest', supports: ['video', 'image'], defaultFor: ['video', 'image'], targetConfigured: false, requiredTargetEnv: 'OWLGORITHM_SOCIAL_PINTEREST_BOARD_ID' },
-  { id: 'reddit', label: 'Reddit', supports: ['video', 'image', 'text'], defaultFor: ['video', 'image', 'text'], targetConfigured: false, requiredTargetEnv: 'OWLGORITHM_SOCIAL_REDDIT_SUBREDDIT' },
-  { id: 'bluesky', label: 'Bluesky', supports: ['video', 'image', 'text'], defaultFor: ['video', 'image', 'text'], targetConfigured: true, requiredTargetEnv: null },
-  { id: 'google_business', label: 'Google Business', supports: ['video', 'image', 'text'], defaultFor: ['video', 'image', 'text'], targetConfigured: false, requiredTargetEnv: null },
+  { id: 'tiktok', label: 'TikTok', supports: ['video', 'image'], defaultFor: ['video', 'image'], targetConfigured: true, requiredTargetEnv: null, connected: false },
+  { id: 'instagram', label: 'Instagram', supports: ['video', 'image'], defaultFor: ['video', 'image'], targetConfigured: true, requiredTargetEnv: null, connected: false },
+  { id: 'youtube', label: 'YouTube', supports: ['video'], defaultFor: ['video'], targetConfigured: true, requiredTargetEnv: null, connected: false },
+  { id: 'linkedin', label: 'LinkedIn', supports: ['video', 'image', 'text'], defaultFor: ['video', 'image', 'text'], targetConfigured: true, requiredTargetEnv: null, connected: false },
+  { id: 'facebook', label: 'Facebook', supports: ['video', 'image', 'text'], defaultFor: ['video', 'image', 'text'], targetConfigured: true, requiredTargetEnv: null, connected: false },
+  { id: 'x', label: 'X', supports: ['video', 'image', 'text'], defaultFor: ['video', 'image', 'text'], targetConfigured: true, requiredTargetEnv: null, connected: false },
+  { id: 'threads', label: 'Threads', supports: ['video', 'image', 'text'], defaultFor: ['video', 'image', 'text'], targetConfigured: true, requiredTargetEnv: null, connected: false },
+  { id: 'pinterest', label: 'Pinterest', supports: ['video', 'image'], defaultFor: ['video', 'image'], targetConfigured: false, requiredTargetEnv: 'OWLGORITHM_SOCIAL_PINTEREST_BOARD_ID', connected: false },
+  { id: 'reddit', label: 'Reddit', supports: ['video', 'image', 'text'], defaultFor: ['video', 'image', 'text'], targetConfigured: false, requiredTargetEnv: 'OWLGORITHM_SOCIAL_REDDIT_SUBREDDIT', connected: false },
+  { id: 'bluesky', label: 'Bluesky', supports: ['video', 'image', 'text'], defaultFor: ['video', 'image', 'text'], targetConfigured: true, requiredTargetEnv: null, connected: false },
+  { id: 'google_business', label: 'Google Business', supports: ['video', 'image', 'text'], defaultFor: ['video', 'image', 'text'], targetConfigured: true, requiredTargetEnv: null, connected: false },
 ];
 
 const MEDIA_PLATFORMS = [
@@ -125,7 +125,8 @@ function staticResponse(endpoint, options = {}) {
   if (endpoint === '/api/social/readiness' || endpoint === '/api/social/accounts') {
     return {
       configured: false,
-      missing: ['OWLGORITHM_SOCIAL_API_KEY', 'OWLGORITHM_SOCIAL_API_BASE_URL', 'OWLGORITHM_SOCIAL_PROFILE'],
+      missing: ['UPLOAD_POST_API_KEY'],
+      provider: 'upload-post',
       profileConfigured: false,
       platforms: SOCIAL_PLATFORMS,
     };

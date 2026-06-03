@@ -1,5 +1,6 @@
 export const APP_NAV_ITEMS = [
   { path: '/', label: 'Dashboard', availability: 'live' },
+  { path: '/post-now', label: 'Post Now', availability: 'live' },
   { path: '/revenue-god-mode', label: 'Revenue God Mode', availability: 'live' },
   { path: '/trends', label: 'Trend Radar', availability: 'live' },
   { path: '/scheduler', label: 'Scheduler', availability: 'live' },
@@ -9,8 +10,8 @@ export const APP_NAV_ITEMS = [
   { path: '/truth-radar', label: 'Truth Radar', availability: 'live' },
   { path: '/strategy', label: 'Strategy', availability: 'live' },
   { path: '/night-watch', label: 'Night Watch', availability: 'live' },
-  { path: '/platforms', label: 'Platforms', availability: 'live' },
-  { path: '/media', label: 'Creator Studio', availability: 'live' },
+  { path: '/platforms', label: 'Connect Socials', availability: 'live' },
+  { path: '/media', label: 'Creator Studio Pro', availability: 'live' },
   { path: '/wellness', label: 'Wellness', availability: 'live' },
   { path: '/settings', label: 'Settings', availability: 'live' },
 ];

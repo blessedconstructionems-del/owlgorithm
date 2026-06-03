@@ -11,6 +11,7 @@ import {
   Moon,
   Palette,
   Radar,
+  Send,
   Settings,
   ShieldCheck,
   Target,
@@ -25,6 +26,7 @@ import SignalMark from '@/components/shared/SignalMark';
 
 const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', mobileLabel: 'Home', icon: LayoutDashboard },
+  { path: '/post-now', label: 'Post Now', mobileLabel: 'Post', icon: Send },
   { path: '/revenue-god-mode', label: 'Revenue God Mode', mobileLabel: 'Revenue', icon: Zap },
   { path: '/trends', label: 'Trend Radar', mobileLabel: 'Trends', icon: Radar },
   { path: '/scheduler', label: 'Scheduler', mobileLabel: 'Schedule', icon: Calendar },
@@ -34,8 +36,8 @@ const NAV_ITEMS = [
   { path: '/truth-radar', label: 'Truth Radar', mobileLabel: 'Truth', icon: ShieldCheck },
   { path: '/strategy', label: 'Strategy', mobileLabel: 'Strategy', icon: Target },
   { path: '/night-watch', label: 'Night Watch', mobileLabel: 'Night', icon: Moon },
-  { path: '/platforms', label: 'Platforms', mobileLabel: 'Platforms', icon: Link2 },
-  { path: '/media', label: 'Creator Studio', mobileLabel: 'Create', icon: Palette },
+  { path: '/platforms', label: 'Connect Socials', mobileLabel: 'Socials', icon: Link2 },
+  { path: '/media', label: 'Creator Studio Pro', mobileLabel: 'Studio', icon: Palette },
   { path: '/wellness', label: 'Wellness', mobileLabel: 'Wellness', icon: Heart },
   { path: '/settings', label: 'Settings', mobileLabel: 'Settings', icon: Settings },
 ];

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   AlertCircle,
@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   Clipboard,
   Download,
+  ExternalLink,
   Globe2,
   Image as ImageIcon,
   MessageCircle,
@@ -27,6 +28,7 @@ import PageWrapper from '@/components/shared/PageWrapper';
 import StatusBadge from '@/components/shared/StatusBadge';
 import PlatformIcon from '@/components/shared/PlatformIcon';
 import { apiRequest } from '@/lib/api';
+import { appRedirectUrl, openHostedSocialConnect } from '@/lib/nativeBridge';
 import { cn } from '@/lib/utils';
 import { useTrendsData } from '@/data/trends';
 
@@ -41,17 +43,17 @@ const DEFAULT_PLATFORMS = [
 ];
 
 const DEFAULT_SOCIAL_PLATFORMS = [
-  { id: 'tiktok', label: 'TikTok', supports: ['video', 'image'], defaultFor: ['video', 'image'], targetConfigured: true },
-  { id: 'instagram', label: 'Instagram', supports: ['video', 'image'], defaultFor: ['video', 'image'], targetConfigured: true },
-  { id: 'youtube', label: 'YouTube', supports: ['video'], defaultFor: ['video'], targetConfigured: true },
-  { id: 'linkedin', label: 'LinkedIn', supports: ['video', 'image', 'text'], defaultFor: ['video', 'image', 'text'], targetConfigured: true },
-  { id: 'facebook', label: 'Facebook', supports: ['video', 'image', 'text'], defaultFor: ['video', 'image', 'text'], targetConfigured: true },
-  { id: 'x', label: 'X', supports: ['video', 'image', 'text'], defaultFor: ['video', 'image', 'text'], targetConfigured: true },
-  { id: 'threads', label: 'Threads', supports: ['video', 'image', 'text'], defaultFor: ['video', 'image', 'text'], targetConfigured: true },
-  { id: 'pinterest', label: 'Pinterest', supports: ['video', 'image'], defaultFor: ['video', 'image'], targetConfigured: false, requiredTargetEnv: 'OWLGORITHM_SOCIAL_PINTEREST_BOARD_ID' },
-  { id: 'reddit', label: 'Reddit', supports: ['video', 'image', 'text'], defaultFor: ['video', 'image', 'text'], targetConfigured: false, requiredTargetEnv: 'OWLGORITHM_SOCIAL_REDDIT_SUBREDDIT' },
-  { id: 'bluesky', label: 'Bluesky', supports: ['video', 'image', 'text'], defaultFor: ['video', 'image', 'text'], targetConfigured: true },
-  { id: 'google_business', label: 'Google Business', supports: ['video', 'image', 'text'], defaultFor: ['video', 'image', 'text'], targetConfigured: true },
+  { id: 'tiktok', label: 'TikTok', supports: ['video', 'image'], defaultFor: ['video', 'image'], targetConfigured: true, connected: false },
+  { id: 'instagram', label: 'Instagram', supports: ['video', 'image'], defaultFor: ['video', 'image'], targetConfigured: true, connected: false },
+  { id: 'youtube', label: 'YouTube', supports: ['video'], defaultFor: ['video'], targetConfigured: true, connected: false },
+  { id: 'linkedin', label: 'LinkedIn', supports: ['video', 'image', 'text'], defaultFor: ['video', 'image', 'text'], targetConfigured: true, connected: false },
+  { id: 'facebook', label: 'Facebook', supports: ['video', 'image', 'text'], defaultFor: ['video', 'image', 'text'], targetConfigured: true, connected: false },
+  { id: 'x', label: 'X', supports: ['video', 'image', 'text'], defaultFor: ['video', 'image', 'text'], targetConfigured: true, connected: false },
+  { id: 'threads', label: 'Threads', supports: ['video', 'image', 'text'], defaultFor: ['video', 'image', 'text'], targetConfigured: true, connected: false },
+  { id: 'pinterest', label: 'Pinterest', supports: ['video', 'image'], defaultFor: ['video', 'image'], targetConfigured: false, requiredTargetEnv: 'OWLGORITHM_SOCIAL_PINTEREST_BOARD_ID', connected: false },
+  { id: 'reddit', label: 'Reddit', supports: ['video', 'image', 'text'], defaultFor: ['video', 'image', 'text'], targetConfigured: false, requiredTargetEnv: 'OWLGORITHM_SOCIAL_REDDIT_SUBREDDIT', connected: false },
+  { id: 'bluesky', label: 'Bluesky', supports: ['video', 'image', 'text'], defaultFor: ['video', 'image', 'text'], targetConfigured: true, connected: false },
+  { id: 'google_business', label: 'Google Business', supports: ['video', 'image', 'text'], defaultFor: ['video', 'image', 'text'], targetConfigured: true, connected: false },
 ];
 
 const DEFAULT_STYLES = [
@@ -124,7 +126,13 @@ function defaultSocialPlatformIds(platforms, assetType) {
   return platforms
     .filter((platform) => platform.defaultFor?.includes(assetType))
     .filter((platform) => !platform.requiredTargetEnv || platform.targetConfigured)
+    .filter((platform) => platform.connected === true)
     .map((platform) => platform.id);
+}
+
+function accountLabel(account) {
+  if (!account) return null;
+  return account.displayName || account.username || account.pageName || account.pageId || 'Connected';
 }
 
 function radarPickFrom(trends) {
@@ -264,14 +272,34 @@ export default function MediaBuilder() {
   const missingSocialTargets = selectedSocialPlatformDetails.filter((platform) => (
     platform.requiredTargetEnv && !platform.targetConfigured
   ));
+  const disconnectedSocialPlatforms = selectedSocialPlatformDetails.filter((platform) => platform.connected !== true);
   const socialPublishBlocked = Boolean(
     !socialReadiness?.configured
       || !asset?.url
       || !activePlan
       || !socialPlatforms.length
+      || disconnectedSocialPlatforms.length
       || missingSocialTargets.length,
   );
   const socialStatusId = socialResult?.post?.requestId || socialResult?.post?.jobId || null;
+
+  const refreshSocialAccounts = useCallback(async () => {
+    const data = await apiRequest('/api/social/accounts');
+    setSocialReadiness(data);
+    setSocialError(null);
+    setSocialPlatforms((current) => {
+      const selectableIds = new Set(
+        (data.platforms || [])
+          .filter((platform) => platform.connected === true)
+          .filter((platform) => !platform.requiredTargetEnv || platform.targetConfigured)
+          .map((platform) => platform.id),
+      );
+      const filtered = current.filter((id) => selectableIds.has(id));
+      if (filtered.length) return filtered;
+      return defaultSocialPlatformIds(data.platforms || [], DEFAULT_FORM.type);
+    });
+    return data;
+  }, []);
 
   useEffect(() => {
     const trendId = searchParams.get('trend');
@@ -297,14 +325,7 @@ export default function MediaBuilder() {
       }
 
       try {
-        const data = await apiRequest('/api/social/readiness');
-        if (!cancelled) {
-          setSocialReadiness(data);
-          setSocialError(null);
-          setSocialPlatforms((current) => (
-            current.length ? current : defaultSocialPlatformIds(data.platforms || [], DEFAULT_FORM.type)
-          ));
-        }
+        await refreshSocialAccounts();
       } catch (loadError) {
         if (!cancelled) {
           setSocialError(loadError.message);
@@ -319,14 +340,35 @@ export default function MediaBuilder() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refreshSocialAccounts]);
+
+  useEffect(() => {
+    function handleVisibility() {
+      if (document.visibilityState === 'visible') {
+        refreshSocialAccounts().catch((refreshError) => setSocialError(refreshError.message));
+      }
+    }
+    function handleConnectComplete() {
+      refreshSocialAccounts().catch((refreshError) => setSocialError(refreshError.message));
+    }
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', handleConnectComplete);
+    window.addEventListener('owlgorithm:social-connect-complete', handleConnectComplete);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleConnectComplete);
+      window.removeEventListener('owlgorithm:social-connect-complete', handleConnectComplete);
+    };
+  }, [refreshSocialAccounts]);
 
   useEffect(() => {
     setSocialPlatforms((current) => {
       const supportedIds = supportedSocialPlatforms.map((platform) => platform.id);
       const filtered = current.filter((id) => {
         const platform = socialPlatformOptions.find((item) => item.id === id);
-        return supportedIds.includes(id) && (!platform?.requiredTargetEnv || platform.targetConfigured);
+        return supportedIds.includes(id)
+          && platform?.connected === true
+          && (!platform?.requiredTargetEnv || platform.targetConfigured);
       });
       if (filtered.length) return filtered;
       return defaultSocialPlatformIds(socialPlatformOptions, socialContentType);
@@ -442,6 +484,7 @@ export default function MediaBuilder() {
   function toggleSocialPlatform(platformId) {
     const platform = socialPlatformOptions.find((item) => item.id === platformId);
     if (!platform?.supports?.includes(socialContentType)) return;
+    if (platform.connected !== true) return;
     if (platform.requiredTargetEnv && !platform.targetConfigured) return;
 
     setSocialPlatforms((current) => (
@@ -580,7 +623,7 @@ export default function MediaBuilder() {
 
   async function handleSocialPublish(schedule = false) {
     if (!socialReadiness?.configured) {
-      setSocialError('Social publishing needs private social provider credentials on the backend.');
+      setSocialError('Social publishing needs UPLOAD_POST_API_KEY on the backend.');
       return;
     }
     if (!asset?.url) {
@@ -593,6 +636,10 @@ export default function MediaBuilder() {
     }
     if (missingSocialTargets.length) {
       setSocialError(`Selected platforms need backend targets: ${missingSocialTargets.map((platform) => platform.requiredTargetEnv).join(', ')}.`);
+      return;
+    }
+    if (disconnectedSocialPlatforms.length) {
+      setSocialError(`Connect these accounts before publishing: ${disconnectedSocialPlatforms.map((platform) => platform.label).join(', ')}.`);
       return;
     }
 
@@ -617,6 +664,40 @@ export default function MediaBuilder() {
       setSocialResult(data);
     } catch (publishError) {
       setSocialError(publishError.message);
+    } finally {
+      setSocialBusy(null);
+    }
+  }
+
+  async function handleSocialConnect() {
+    setSocialBusy('connect');
+    setSocialError(null);
+    setNotice(null);
+
+    try {
+      const session = await apiRequest('/api/social/connect', {
+        method: 'POST',
+        json: {
+          redirectUrl: appRedirectUrl('/platforms?social=connected'),
+        },
+      });
+      const opened = openHostedSocialConnect(session.accessUrl);
+      setNotice(opened === 'native' ? 'Upload-Post connect opened in the secure iOS session.' : 'Upload-Post connect opened.');
+    } catch (connectError) {
+      setSocialError(connectError.message);
+    } finally {
+      setSocialBusy(null);
+    }
+  }
+
+  async function handleSocialRefresh() {
+    setSocialBusy('refresh');
+    setSocialError(null);
+    try {
+      await refreshSocialAccounts();
+      setNotice('Social account status refreshed.');
+    } catch (refreshError) {
+      setSocialError(refreshError.message);
     } finally {
       setSocialBusy(null);
     }
@@ -823,19 +904,19 @@ export default function MediaBuilder() {
                 <WandSparkles size={21} />
               </div>
               <div className="min-w-0">
-                <h1 className="text-2xl font-bold text-white sm:text-3xl">Creator Studio</h1>
+                <h1 className="text-2xl font-bold text-white sm:text-3xl">Creator Studio Pro</h1>
                 <p className="mt-1 max-w-2xl text-sm leading-relaxed text-gray-400">
-                  Build image and video assets from live Trend Radar signals, then publish them across connected social channels.
+                  Advanced image and video generation for upgraded workspaces.
                 </p>
               </div>
             </div>
           </div>
 
           <Link
-            to="/night-watch"
+            to="/post-now"
             className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/[0.07]"
           >
-            Open Night Watch
+            Open Post Now
             <ArrowRight size={15} />
           </Link>
         </div>
@@ -847,7 +928,7 @@ export default function MediaBuilder() {
         ) : null}
         {!socialReadiness?.configured ? (
           <div className="mt-3 rounded-xl border border-blue-500/20 bg-blue-500/10 px-4 py-3 text-sm leading-relaxed text-blue-100">
-            Social publishing needs private backend credentials before Post now and Post at best time are enabled.
+            Social publishing needs UPLOAD_POST_API_KEY on the backend before Post now and Post at best time are enabled.
           </div>
         ) : null}
         {readinessError || trendsError || error || socialError || notice ? (
@@ -1209,7 +1290,25 @@ export default function MediaBuilder() {
                   Publish the generated {socialContentType} to every connected channel that supports it.
                 </p>
               </div>
-              <StatusBadge status={socialReadiness?.configured ? 'active' : 'disabled'} />
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={handleSocialConnect}
+                  disabled={!socialReadiness?.configured || socialBusy === 'connect'}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-blue-500/30 bg-blue-500/15 px-3 py-2 text-xs font-semibold text-blue-100 transition-colors hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <ExternalLink size={14} />
+                  {socialBusy === 'connect' ? 'Opening...' : 'Connect'}
+                </button>
+                <button
+                  onClick={handleSocialRefresh}
+                  disabled={socialBusy === 'refresh'}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <RefreshCw size={14} className={socialBusy === 'refresh' ? 'animate-spin' : ''} />
+                  Refresh
+                </button>
+                <StatusBadge status={socialReadiness?.configured ? 'active' : 'disabled'} />
+              </div>
             </div>
 
             <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
@@ -1230,8 +1329,9 @@ export default function MediaBuilder() {
                 {socialPlatformOptions.map((platform) => {
                   const supported = platform.supports?.includes(socialContentType);
                   const targetReady = !platform.requiredTargetEnv || platform.targetConfigured;
+                  const connected = platform.connected === true;
                   const checked = socialPlatforms.includes(platform.id);
-                  const disabled = !supported || !targetReady;
+                  const disabled = !supported || !targetReady || !connected;
                   return (
                     <button
                       key={platform.id}
@@ -1245,10 +1345,19 @@ export default function MediaBuilder() {
                         disabled && 'cursor-not-allowed opacity-45 hover:bg-white/[0.03]',
                       )}
                     >
-                      <span className="min-w-0">
-                        <span className="block truncate text-sm font-semibold">{platform.label}</span>
-                        <span className="mt-0.5 block truncate text-[11px] text-gray-500">
-                          {!supported ? `No ${socialContentType} support` : !targetReady ? `Needs ${platform.requiredTargetEnv}` : platform.supports.join(', ')}
+                      <span className="flex min-w-0 items-center gap-2">
+                        <PlatformIcon platform={platform.id === 'x' ? 'twitter' : platform.id} size={24} />
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-semibold">{platform.label}</span>
+                          <span className="mt-0.5 block truncate text-[11px] text-gray-500">
+                            {!supported
+                              ? `No ${socialContentType} support`
+                              : !connected
+                                ? 'Connect first'
+                                : !targetReady
+                                  ? `Needs ${platform.requiredTargetEnv}`
+                                  : accountLabel(platform.account) || platform.supports.join(', ')}
+                          </span>
                         </span>
                       </span>
                       <span className={cn(
@@ -1294,8 +1403,14 @@ export default function MediaBuilder() {
               <p className="text-xs leading-relaxed text-amber-200">
                 Selected platforms need backend target settings: {missingSocialTargets.map((platform) => platform.requiredTargetEnv).join(', ')}.
               </p>
+            ) : disconnectedSocialPlatforms.length ? (
+              <p className="text-xs leading-relaxed text-amber-200">
+                Connect these accounts before publishing: {disconnectedSocialPlatforms.map((platform) => platform.label).join(', ')}.
+              </p>
+            ) : socialReadiness?.configured && !socialPlatforms.length ? (
+              <p className="text-xs leading-relaxed text-gray-500">No connected account currently supports {socialContentType} publishing.</p>
             ) : !socialReadiness?.configured ? (
-              <p className="text-xs leading-relaxed text-gray-500">Publishing stays disabled until the private social provider settings are configured server-side.</p>
+              <p className="text-xs leading-relaxed text-gray-500">Publishing stays disabled until UPLOAD_POST_API_KEY is configured server-side.</p>
             ) : null}
 
             {socialResult?.post ? (
@@ -1422,7 +1537,7 @@ export default function MediaBuilder() {
         <div className="flex gap-3">
           <AlertCircle size={18} className="mt-0.5 shrink-0 text-amber-300" />
           <p className="text-sm leading-relaxed text-gray-400">
-            Publishing is provider-backed and stays disabled unless the backend has private social credentials and required posting targets. The app does not expose provider details to the browser.
+            Publishing is Upload-Post backed and stays disabled unless the backend has UPLOAD_POST_API_KEY, the user's Upload-Post profile exists, and the selected accounts are connected.
           </p>
         </div>
       </GlassCard>

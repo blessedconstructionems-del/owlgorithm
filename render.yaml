@@ -3,7 +3,7 @@ services:
     runtime: node
     name: owlgorithm
     plan: starter
-    buildCommand: npm ci && npm run build
+    buildCommand: npm ci --include=dev && npm run build
     startCommand: npm start
     healthCheckPath: /api/health
     autoDeployTrigger: checksPass
@@ -18,6 +18,8 @@ services:
         value: production
       - key: OWLGORITHM_BASE_PATH
         value: /
+      - key: OWLGORITHM_HOST
+        value: 0.0.0.0
       - key: OWLGORITHM_PUBLIC_URL
         sync: false
       - key: OWLGORITHM_DATA_DIR
@@ -46,31 +48,25 @@ services:
         sync: false
       - key: OWLGORITHM_MEDIA_VIDEO_MODEL
         sync: false
-      - key: OWLGORITHM_SOCIAL_API_KEY
+      - key: UPLOAD_POST_API_KEY
         sync: false
-      - key: OWLGORITHM_SOCIAL_PROFILE
+      - key: UPLOAD_POST_API_BASE_URL
+        value: https://api.upload-post.com/api
+      - key: UPLOAD_POST_PROFILE_USERNAME
         sync: false
-      - key: OWLGORITHM_SOCIAL_API_BASE_URL
-        sync: false
-      - key: OWLGORITHM_SOCIAL_AUTH_SCHEME
+      - key: UPLOAD_POST_AUTH_SCHEME
         value: Apikey
-      - key: OWLGORITHM_SOCIAL_TIMEZONE
+      - key: UPLOAD_POST_TIMEZONE
         value: America/New_York
-      - key: OWLGORITHM_SOCIAL_FACEBOOK_PAGE_ID
+      - key: UPLOAD_POST_CONNECT_PLATFORMS
+        value: tiktok,instagram,linkedin,facebook,x,threads,google_business
+      - key: UPLOAD_POST_FACEBOOK_PAGE_ID
         sync: false
-      - key: OWLGORITHM_SOCIAL_LINKEDIN_PAGE_ID
+      - key: UPLOAD_POST_LINKEDIN_PAGE_ID
         sync: false
-      - key: OWLGORITHM_SOCIAL_PINTEREST_BOARD_ID
+      - key: UPLOAD_POST_PINTEREST_BOARD_ID
         sync: false
-      - key: OWLGORITHM_SOCIAL_REDDIT_SUBREDDIT
+      - key: UPLOAD_POST_REDDIT_SUBREDDIT
         sync: false
-      - key: OWLGORITHM_SOCIAL_GOOGLE_BUSINESS_LOCATION_ID
-        sync: false
-      - key: OWLGORITHM_SOCIAL_UPLOAD_ENDPOINT
-        sync: false
-      - key: OWLGORITHM_SOCIAL_PHOTO_ENDPOINT
-        sync: false
-      - key: OWLGORITHM_SOCIAL_TEXT_ENDPOINT
-        sync: false
-      - key: OWLGORITHM_SOCIAL_STATUS_ENDPOINT
+      - key: UPLOAD_POST_GOOGLE_BUSINESS_LOCATION_ID
         sync: false

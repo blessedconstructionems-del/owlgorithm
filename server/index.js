@@ -39,6 +39,8 @@ import {
   normalizeMediaRequest,
 } from './media.js';
 import {
+  createSocialConnectSession,
+  getSocialAccountsForUser,
   getSocialPostStatus,
   getSocialReadiness,
   normalizeSocialRequest,
@@ -52,8 +54,8 @@ const DIST_DIR = path.join(projectRoot, 'dist');
 
 loadProjectEnv();
 
-const PORT = parseInt(process.env.OWLGORITHM_PORT || '3847', 10);
-const HOST = process.env.OWLGORITHM_HOST || '127.0.0.1';
+const PORT = parseInt(process.env.PORT || process.env.OWLGORITHM_PORT || '3847', 10);
+const HOST = process.env.OWLGORITHM_HOST || (process.env.PORT ? '0.0.0.0' : '127.0.0.1');
 const BASE_PATH = normalizeBasePath(process.env.OWLGORITHM_BASE_PATH || '/');
 const SCRAPE_INTERVAL = parseInt(process.env.SCRAPE_INTERVAL_MS || String(2 * 60 * 60 * 1000), 10);
 const ENABLE_SCRAPER = (process.env.ENABLE_SCRAPER || 'true') !== 'false';
@@ -269,6 +271,20 @@ function requireAuth(res, req, authState) {
   if (authState.auth) return authState.auth;
   jsonResponse(res, { error: 'Authentication required.' }, 401, authState.clearHeaders);
   return null;
+}
+
+function requestOrigin(req) {
+  const forwardedProto = `${req.headers['x-forwarded-proto'] || ''}`.split(',')[0].trim();
+  const forwardedHost = `${req.headers['x-forwarded-host'] || ''}`.split(',')[0].trim();
+  const proto = forwardedProto || (req.socket.encrypted ? 'https' : 'http');
+  const host = forwardedHost || req.headers.host || `localhost:${PORT}`;
+  return `${proto}://${host}`;
+}
+
+function buildSocialRedirectUrl(req) {
+  const publicUrl = `${process.env.OWLGORITHM_PUBLIC_URL || ''}`.trim();
+  const baseUrl = (publicUrl || `${requestOrigin(req)}${BASE_PATH}`).replace(/\/+$/, '');
+  return `${baseUrl}/#/platforms?social=connected`;
 }
 
 let scrapeInProgress = false;
@@ -566,18 +582,23 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (pathname === '/api/social/accounts' && req.method === 'GET') {
-      const socialReadiness = getSocialReadiness();
-      return jsonResponse(res, {
-        configured: socialReadiness.configured,
-        profileConfigured: socialReadiness.profileConfigured,
-        platforms: socialReadiness.platforms,
+      const accounts = await getSocialAccountsForUser(auth.user);
+      return jsonResponse(res, accounts);
+    }
+
+    if (pathname === '/api/social/connect' && req.method === 'POST') {
+      const body = await readJsonBody(req);
+      const session = await createSocialConnectSession({
+        user: auth.user,
+        redirectUrl: body.redirectUrl || buildSocialRedirectUrl(req),
       });
+      return jsonResponse(res, session);
     }
 
     if (pathname === '/api/social/post' && req.method === 'POST') {
       const body = await readJsonBody(req);
       const request = normalizeSocialRequest(body);
-      const post = await publishSocialPost(request);
+      const post = await publishSocialPost({ user: auth.user, request });
       return jsonResponse(res, { request, post });
     }
 
@@ -590,7 +611,7 @@ const server = http.createServer(async (req, res) => {
           code: 'invalid_social_request',
         }, 400);
       }
-      const post = await publishSocialPost(request);
+      const post = await publishSocialPost({ user: auth.user, request });
       return jsonResponse(res, { request, post });
     }
 
@@ -687,6 +708,8 @@ const server = http.createServer(async (req, res) => {
             ? 503
           : err.code === 'invalid_social_request'
             ? 400
+          : err.code === 'social_not_found'
+            ? 404
           : err.code === 'social_provider_error'
             ? err.status || 502
           : err.message === 'Request body too large.'
@@ -734,6 +757,7 @@ server.listen(PORT, HOST, () => {
   console.log('  GET  /api/media/video/:requestId');
   console.log('  GET  /api/social/readiness');
   console.log('  GET  /api/social/accounts');
+  console.log('  POST /api/social/connect');
   console.log('  POST /api/social/post');
   console.log('  POST /api/social/schedule');
   console.log('  GET  /api/social/status/:requestId');

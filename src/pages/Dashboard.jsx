@@ -5,8 +5,8 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from 'recharts';
 import {
-  Activity, AlertCircle, ArrowUpRight, ChevronRight, Clock, Database,
-  Moon, Palette, Radar, Settings, TrendingUp,
+  Activity, AlertCircle, ArrowUpRight, ChevronRight, Clock, Database, Link2,
+  Moon, Palette, Radar, Send, Settings, TrendingUp,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 
@@ -176,9 +176,11 @@ export default function Dashboard() {
     : 'No live trend data is loaded yet. Start the scraper or wait for the next scheduled refresh.';
 
   const quickActions = [
+    { icon: Send, title: 'Post Now', desc: 'Open the beginner flow with radar pick, camera prompts, filled caption, and posting choices.', link: '/post-now' },
     { icon: Radar, title: 'Open Trend Radar', desc: 'Inspect live trend signals, momentum, and source platforms.', link: '/trends' },
     { icon: Moon, title: 'Open Night Watch', desc: 'Review the overnight build queue and risk board from live trend data.', link: '/night-watch' },
-    { icon: Palette, title: 'Open Creator Studio', desc: 'Create and publish social images, videos, captions, and guided recordings from trend signals.', link: '/media' },
+    { icon: Link2, title: 'Connect Socials', desc: 'Link Upload-Post profiles and verify connected publishing accounts.', link: '/platforms' },
+    { icon: Palette, title: 'Open Creator Studio Pro', desc: 'Create social images, videos, captions, and advanced assets from trend signals.', link: '/media' },
     { icon: Settings, title: 'Review Account Settings', desc: 'Manage profile, password, and workspace display preferences.', link: '/settings' },
   ];
 
@@ -359,19 +361,19 @@ export default function Dashboard() {
             <h2 className="mb-5 text-lg font-bold text-white">Command Actions</h2>
             <div className="grid grid-cols-1 gap-4">
               {quickActions.map((action) => (
-                <Link key={action.title} to={action.link} className="block">
-                  <GlassCard gradient className="group !p-5 min-h-[148px] transition-all hover:glow-purple">
-                    <div className="relative z-10 flex h-full flex-col justify-between gap-4">
+                <Link key={action.title} to={action.link} className="block h-full no-underline hover:no-underline">
+                  <GlassCard gradient className="group h-full min-h-[164px] !p-0 transition-all hover:glow-purple">
+                    <div className="relative z-10 flex h-full min-h-[164px] flex-col p-5">
                       <div className="flex items-start gap-3">
                         <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-gradient-to-br from-blue-500/20 to-purple-500/20 transition-transform group-hover:scale-105">
                           {createElement(action.icon, { size: 18, className: 'text-blue-400' })}
                         </div>
                         <div className="min-w-0">
                           <h3 className="text-sm font-bold leading-snug text-white">{action.title}</h3>
-                          <p className="mt-2 text-xs leading-relaxed text-gray-500">{action.desc}</p>
+                          <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-gray-500 group-hover:text-gray-400">{action.desc}</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1 text-[11px] font-medium text-blue-400/70 transition-colors group-hover:text-blue-300">
+                      <div className="mt-auto flex items-center gap-1 pt-4 text-[11px] font-medium text-blue-400/70 transition-colors group-hover:text-blue-300">
                         Open <ArrowUpRight size={12} />
                       </div>
                     </div>

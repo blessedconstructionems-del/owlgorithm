@@ -1,7 +1,13 @@
+import { getSocialProfileByUserId, upsertSocialProfile } from './db.js';
+
+const DEFAULT_API_BASE_URL = 'https://api.upload-post.com/api';
 const DEFAULT_UPLOAD_ENDPOINT = '/api/upload';
 const DEFAULT_PHOTO_ENDPOINT = '/api/upload_photos';
 const DEFAULT_TEXT_ENDPOINT = '/api/upload_text';
-const DEFAULT_STATUS_ENDPOINT = ['/api/upload', 'posts/status'].join('');
+const DEFAULT_STATUS_ENDPOINT = '/api/uploadposts/status';
+const DEFAULT_PROFILE_ENDPOINT = '/api/uploadposts/users';
+const DEFAULT_PROFILE_JWT_ENDPOINT = '/api/uploadposts/users/generate-jwt';
+const DEFAULT_CONNECT_PLATFORMS = 'tiktok,instagram,linkedin,facebook,x,threads,google_business';
 
 const SOCIAL_PLATFORMS = {
   tiktok: {
@@ -65,6 +71,10 @@ const PLATFORM_ALIASES = {
   twitter: 'x',
 };
 
+const ACCOUNT_ALIASES = {
+  x: ['x', 'twitter'],
+};
+
 const REQUIRED_TARGETS = {
   pinterest: 'OWLGORITHM_SOCIAL_PINTEREST_BOARD_ID',
   reddit: 'OWLGORITHM_SOCIAL_REDDIT_SUBREDDIT',
@@ -78,6 +88,13 @@ function text(value, fallback = '') {
 function bool(value, fallback = false) {
   if (value === undefined || value === null || value === '') return fallback;
   return ['1', 'true', 'yes', 'on'].includes(`${value}`.toLowerCase());
+}
+
+function csv(value, fallback = '') {
+  return text(value, fallback)
+    .split(',')
+    .map((item) => text(item).toLowerCase())
+    .filter(Boolean);
 }
 
 function cleanUrl(baseUrl, endpoint) {
@@ -144,34 +161,72 @@ async function remoteImageBlob(mediaUrl) {
 
 function getSocialConfig() {
   const config = {
-    apiKey: text(process.env.OWLGORITHM_SOCIAL_API_KEY),
-    apiBaseUrl: text(process.env.OWLGORITHM_SOCIAL_API_BASE_URL),
-    profile: text(process.env.OWLGORITHM_SOCIAL_PROFILE),
-    authScheme: text(process.env.OWLGORITHM_SOCIAL_AUTH_SCHEME, 'Apikey'),
-    timezone: text(process.env.OWLGORITHM_SOCIAL_TIMEZONE, 'America/New_York'),
-    facebookPageId: text(process.env.OWLGORITHM_SOCIAL_FACEBOOK_PAGE_ID),
-    linkedinPageId: text(process.env.OWLGORITHM_SOCIAL_LINKEDIN_PAGE_ID),
-    pinterestBoardId: text(process.env.OWLGORITHM_SOCIAL_PINTEREST_BOARD_ID),
-    subreddit: text(process.env.OWLGORITHM_SOCIAL_REDDIT_SUBREDDIT),
-    googleBusinessLocationId: text(process.env.OWLGORITHM_SOCIAL_GOOGLE_BUSINESS_LOCATION_ID),
-    asyncUpload: bool(process.env.OWLGORITHM_SOCIAL_ASYNC_UPLOAD, true),
+    apiKey: text(process.env.UPLOAD_POST_API_KEY || process.env.OWLGORITHM_SOCIAL_API_KEY),
+    apiBaseUrl: text(process.env.UPLOAD_POST_API_BASE_URL || process.env.OWLGORITHM_SOCIAL_API_BASE_URL, DEFAULT_API_BASE_URL),
+    profileUsername: text(process.env.UPLOAD_POST_PROFILE_USERNAME || process.env.UPLOAD_POST_USER || process.env.OWLGORITHM_SOCIAL_PROFILE),
+    authScheme: text(process.env.UPLOAD_POST_AUTH_SCHEME || process.env.OWLGORITHM_SOCIAL_AUTH_SCHEME, 'Apikey'),
+    timezone: text(process.env.UPLOAD_POST_TIMEZONE || process.env.OWLGORITHM_SOCIAL_TIMEZONE, 'America/New_York'),
+    facebookPageId: text(process.env.UPLOAD_POST_FACEBOOK_PAGE_ID || process.env.OWLGORITHM_SOCIAL_FACEBOOK_PAGE_ID),
+    linkedinPageId: text(process.env.UPLOAD_POST_LINKEDIN_PAGE_ID || process.env.OWLGORITHM_SOCIAL_LINKEDIN_PAGE_ID),
+    pinterestBoardId: text(process.env.UPLOAD_POST_PINTEREST_BOARD_ID || process.env.OWLGORITHM_SOCIAL_PINTEREST_BOARD_ID),
+    subreddit: text(process.env.UPLOAD_POST_REDDIT_SUBREDDIT || process.env.OWLGORITHM_SOCIAL_REDDIT_SUBREDDIT),
+    googleBusinessLocationId: text(
+      process.env.UPLOAD_POST_GOOGLE_BUSINESS_LOCATION_ID || process.env.OWLGORITHM_SOCIAL_GOOGLE_BUSINESS_LOCATION_ID,
+    ),
+    asyncUpload: bool(process.env.UPLOAD_POST_ASYNC_UPLOAD || process.env.OWLGORITHM_SOCIAL_ASYNC_UPLOAD, true),
+    connectPlatforms: csv(
+      process.env.UPLOAD_POST_CONNECT_PLATFORMS || process.env.OWLGORITHM_SOCIAL_CONNECT_PLATFORMS,
+      DEFAULT_CONNECT_PLATFORMS,
+    ),
+    connectTitle: text(process.env.UPLOAD_POST_CONNECT_TITLE, 'Connect Owlgorithm Socials'),
+    connectDescription: text(
+      process.env.UPLOAD_POST_CONNECT_DESCRIPTION,
+      'Link the social accounts Owlgorithm can publish to for this profile.',
+    ),
+    connectLogoUrl: text(process.env.UPLOAD_POST_CONNECT_LOGO_URL),
+    connectRedirectButtonText: text(process.env.UPLOAD_POST_CONNECT_REDIRECT_BUTTON_TEXT, 'Return to Owlgorithm'),
+    connectShowCalendar: bool(process.env.UPLOAD_POST_CONNECT_SHOW_CALENDAR, false),
+    tiktokPrivacyLevel: text(process.env.UPLOAD_POST_TIKTOK_PRIVACY_LEVEL || process.env.OWLGORITHM_SOCIAL_TIKTOK_PRIVACY_LEVEL, 'PUBLIC_TO_EVERYONE'),
+    tiktokAutoAddMusic: bool(process.env.UPLOAD_POST_TIKTOK_AUTO_ADD_MUSIC || process.env.OWLGORITHM_SOCIAL_TIKTOK_AUTO_ADD_MUSIC, true),
+    instagramVideoMediaType: text(process.env.UPLOAD_POST_INSTAGRAM_VIDEO_MEDIA_TYPE || process.env.OWLGORITHM_SOCIAL_INSTAGRAM_MEDIA_TYPE, 'REELS'),
+    instagramPhotoMediaType: text(process.env.UPLOAD_POST_INSTAGRAM_PHOTO_MEDIA_TYPE, 'IMAGE'),
+    facebookMediaType: text(process.env.UPLOAD_POST_FACEBOOK_MEDIA_TYPE || process.env.OWLGORITHM_SOCIAL_FACEBOOK_MEDIA_TYPE, 'REELS'),
+    youtubePrivacyStatus: text(process.env.UPLOAD_POST_YOUTUBE_PRIVACY_STATUS || process.env.OWLGORITHM_SOCIAL_YOUTUBE_PRIVACY_STATUS, 'public'),
+    youtubeCategoryId: text(process.env.UPLOAD_POST_YOUTUBE_CATEGORY_ID || process.env.OWLGORITHM_SOCIAL_YOUTUBE_CATEGORY_ID, '28'),
+    youtubeTags: csv(process.env.UPLOAD_POST_YOUTUBE_TAGS || process.env.OWLGORITHM_SOCIAL_YOUTUBE_TAGS, 'AI,productivity,automation,Delphi Labs,Owlgorithm'),
     endpoints: {
-      video: text(process.env.OWLGORITHM_SOCIAL_UPLOAD_ENDPOINT, DEFAULT_UPLOAD_ENDPOINT),
-      image: text(process.env.OWLGORITHM_SOCIAL_PHOTO_ENDPOINT, DEFAULT_PHOTO_ENDPOINT),
-      text: text(process.env.OWLGORITHM_SOCIAL_TEXT_ENDPOINT, DEFAULT_TEXT_ENDPOINT),
-      status: text(process.env.OWLGORITHM_SOCIAL_STATUS_ENDPOINT, DEFAULT_STATUS_ENDPOINT),
+      video: text(process.env.UPLOAD_POST_UPLOAD_ENDPOINT || process.env.OWLGORITHM_SOCIAL_UPLOAD_ENDPOINT, DEFAULT_UPLOAD_ENDPOINT),
+      image: text(process.env.UPLOAD_POST_PHOTO_ENDPOINT || process.env.OWLGORITHM_SOCIAL_PHOTO_ENDPOINT, DEFAULT_PHOTO_ENDPOINT),
+      text: text(process.env.UPLOAD_POST_TEXT_ENDPOINT || process.env.OWLGORITHM_SOCIAL_TEXT_ENDPOINT, DEFAULT_TEXT_ENDPOINT),
+      status: text(process.env.UPLOAD_POST_STATUS_ENDPOINT || process.env.OWLGORITHM_SOCIAL_STATUS_ENDPOINT, DEFAULT_STATUS_ENDPOINT),
+      profiles: text(process.env.UPLOAD_POST_PROFILES_ENDPOINT, DEFAULT_PROFILE_ENDPOINT),
+      profileJwt: text(process.env.UPLOAD_POST_PROFILE_JWT_ENDPOINT, DEFAULT_PROFILE_JWT_ENDPOINT),
     },
   };
   const missing = [];
-  if (!config.apiKey) missing.push('OWLGORITHM_SOCIAL_API_KEY');
-  if (!config.apiBaseUrl) missing.push('OWLGORITHM_SOCIAL_API_BASE_URL');
-  if (!config.profile) missing.push('OWLGORITHM_SOCIAL_PROFILE');
+  if (!config.apiKey) missing.push('UPLOAD_POST_API_KEY');
 
   return {
     ...config,
     configured: missing.length === 0,
     missing,
   };
+}
+
+function requireSocialConfig(config = getSocialConfig()) {
+  if (!config.configured) {
+    const error = new Error(`Upload-Post social publishing is not configured. Missing: ${config.missing.join(', ')}.`);
+    error.code = 'social_unavailable';
+    throw error;
+  }
+  return config;
+}
+
+function platformTargetConfigured(platform) {
+  const config = getSocialConfig();
+  if (platform === 'pinterest') return Boolean(config.pinterestBoardId);
+  if (platform === 'reddit') return Boolean(config.subreddit);
+  return true;
 }
 
 export function getSocialPlatforms() {
@@ -182,6 +237,8 @@ export function getSocialPlatforms() {
     defaultFor: platform.defaultFor,
     targetConfigured: platformTargetConfigured(id),
     requiredTargetEnv: REQUIRED_TARGETS[id] || null,
+    connected: false,
+    account: null,
   }));
 }
 
@@ -190,19 +247,10 @@ export function getSocialReadiness() {
   return {
     configured: config.configured,
     missing: config.missing,
-    profileConfigured: Boolean(config.profile),
+    provider: 'upload-post',
+    profileConfigured: false,
     platforms: getSocialPlatforms(),
   };
-}
-
-function platformTargetConfigured(platform) {
-  const config = getSocialConfig();
-  if (platform === 'facebook') return Boolean(config.facebookPageId);
-  if (platform === 'linkedin') return Boolean(config.linkedinPageId);
-  if (platform === 'pinterest') return Boolean(config.pinterestBoardId);
-  if (platform === 'reddit') return Boolean(config.subreddit);
-  if (platform === 'google_business') return Boolean(config.googleBusinessLocationId);
-  return true;
 }
 
 function normalizePlatforms(platforms, assetType) {
@@ -307,9 +355,223 @@ function appendIfValue(form, key, value) {
   if (cleaned) form.append(key, cleaned);
 }
 
-async function buildSocialForm(request, config) {
+function appendIfTrue(form, key, value) {
+  if (value) form.append(key, 'true');
+}
+
+function profileUsernameForUser(user) {
+  const userId = text(user?.id).replace(/[^a-zA-Z0-9]/g, '_').slice(0, 80);
+  if (!userId) {
+    const error = new Error('Authenticated Owlgorithm user is required for social publishing.');
+    error.code = 'invalid_social_request';
+    throw error;
+  }
+  return `owl_${userId}`;
+}
+
+function accountKeysForPlatform(platform) {
+  return ACCOUNT_ALIASES[platform] || [platform];
+}
+
+function rawAccountForPlatform(accounts, platform) {
+  const keys = accountKeysForPlatform(platform);
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(accounts || {}, key)) {
+      return accounts[key];
+    }
+  }
+  return null;
+}
+
+function isConnectedAccount(account) {
+  if (!account) return false;
+  if (typeof account === 'string') return account.trim().length > 0;
+  if (typeof account === 'object') {
+    if (typeof account.connected === 'boolean') return account.connected;
+    return Object.keys(account).length > 0;
+  }
+  return Boolean(account);
+}
+
+function publicAccountSummary(account) {
+  if (!isConnectedAccount(account)) return null;
+  if (typeof account === 'string') {
+    return {
+      connected: true,
+      displayName: account,
+      username: account,
+      imageUrl: null,
+    };
+  }
+
+  if (typeof account !== 'object') {
+    return {
+      connected: true,
+      displayName: null,
+      username: null,
+      imageUrl: null,
+    };
+  }
+
+  return {
+    connected: true,
+    displayName: text(account.display_name || account.displayName || account.name || account.page_name || account.pageName) || null,
+    username: text(account.username || account.handle || account.profile || account.id) || null,
+    imageUrl: text(account.social_images || account.social_image || account.image || account.avatar || account.picture) || null,
+    pageId: text(account.page_id || account.pageId) || null,
+    pageName: text(account.page_name || account.pageName) || null,
+  };
+}
+
+function sanitizeSocialAccounts(accounts) {
+  return Object.fromEntries(
+    Object.entries(accounts || {}).map(([platform, account]) => [
+      PLATFORM_ALIASES[text(platform).toLowerCase()] || text(platform).toLowerCase(),
+      publicAccountSummary(account),
+    ]),
+  );
+}
+
+function normalizeProfileResponse(payload, fallbackUsername) {
+  const profile = payload?.profile || payload?.data?.profile || payload?.data || payload;
+  if (!profile || typeof profile !== 'object') {
+    return {
+      username: fallbackUsername,
+      social_accounts: {},
+    };
+  }
+
+  return {
+    username: text(profile.username, fallbackUsername),
+    created_at: profile.created_at || profile.createdAt || null,
+    social_accounts: sanitizeSocialAccounts(profile.social_accounts || profile.socialAccounts || {}),
+  };
+}
+
+function socialPlatformsFromProfile(profile) {
+  const accounts = profile?.social_accounts || {};
+  return Object.entries(SOCIAL_PLATFORMS).map(([id, platform]) => {
+    const account = rawAccountForPlatform(accounts, id);
+    const connected = isConnectedAccount(account);
+    return {
+      id,
+      label: platform.label,
+      supports: platform.supports,
+      defaultFor: platform.defaultFor,
+      targetConfigured: platformTargetConfigured(id),
+      requiredTargetEnv: REQUIRED_TARGETS[id] || null,
+      connected,
+      account: connected ? publicAccountSummary(account) : null,
+    };
+  });
+}
+
+async function uploadPostRequest(endpoint, {
+  method = 'GET',
+  query = null,
+  json = null,
+  form = null,
+} = {}) {
+  const config = requireSocialConfig();
+  const url = new URL(cleanUrl(config.apiBaseUrl, endpoint));
+  if (query) {
+    Object.entries(query).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') url.searchParams.set(key, value);
+    });
+  }
+
+  const headers = {
+    Authorization: `${config.authScheme} ${config.apiKey}`,
+  };
+  if (json) headers['Content-Type'] = 'application/json';
+
+  const response = await fetch(url, {
+    method,
+    headers,
+    body: json ? JSON.stringify(json) : form || undefined,
+  });
+
+  const contentType = response.headers.get('content-type') || '';
+  const data = contentType.includes('application/json') ? await response.json() : await response.text();
+
+  if (!response.ok) {
+    const message = typeof data === 'object' && (data?.message || data?.error)
+      ? data.message || data.error
+      : `Upload-Post request failed with HTTP ${response.status}`;
+    const error = new Error(message);
+    error.code = response.status === 404 ? 'social_not_found' : 'social_provider_error';
+    error.status = response.status;
+    error.payload = data;
+    throw error;
+  }
+
+  return data;
+}
+
+async function fetchRemoteProfile(username) {
+  const config = getSocialConfig();
+  try {
+    const payload = await uploadPostRequest(`${config.endpoints.profiles}/${encodeURIComponent(username)}`);
+    return normalizeProfileResponse(payload, username);
+  } catch (error) {
+    if (error.status === 404) return null;
+    throw error;
+  }
+}
+
+async function createRemoteProfile(username) {
+  const config = getSocialConfig();
+  try {
+    const payload = await uploadPostRequest(config.endpoints.profiles, {
+      method: 'POST',
+      json: { username },
+    });
+    return normalizeProfileResponse(payload, username);
+  } catch (error) {
+    if (error.status === 409) {
+      const profile = await fetchRemoteProfile(username);
+      if (profile) return profile;
+    }
+    throw error;
+  }
+}
+
+async function syncUploadPostProfile(user) {
+  const config = requireSocialConfig();
+  const existing = getSocialProfileByUserId(user.id);
+  const profileUsername = config.profileUsername || existing?.profileUsername || profileUsernameForUser(user);
+  let remoteProfile = await fetchRemoteProfile(profileUsername);
+  if (!remoteProfile) {
+    remoteProfile = await createRemoteProfile(profileUsername);
+  }
+
+  const lastSyncedAt = new Date().toISOString();
+  const localProfile = upsertSocialProfile({
+    userId: user.id,
+    provider: 'upload-post',
+    profileUsername,
+    connectionSnapshot: remoteProfile,
+    lastSyncedAt,
+  });
+
+  return {
+    localProfile,
+    profile: remoteProfile,
+    profileUsername,
+    lastSyncedAt,
+  };
+}
+
+function disconnectedPlatformsFor(request, platforms) {
+  return request.platforms.filter((id) => {
+    const platform = platforms.find((item) => item.id === id);
+    return platform?.connected !== true;
+  });
+}
+
+async function buildSocialForm(request, config, profileUsername) {
   const form = new FormData();
-  form.append('user', config.profile);
+  form.append('user', profileUsername);
   form.append('title', request.title);
   appendIfValue(form, 'description', request.description);
   appendIfValue(form, 'scheduled_date', request.scheduledDate);
@@ -330,6 +592,22 @@ async function buildSocialForm(request, config) {
     form.append('photos[]', remoteImage.blob, remoteImage.filename);
   }
 
+  if (request.platforms.includes('tiktok')) {
+    appendIfValue(form, 'privacy_level', config.tiktokPrivacyLevel);
+    appendIfTrue(form, 'auto_add_music', config.tiktokAutoAddMusic && request.assetType === 'image');
+  }
+  if (request.platforms.includes('instagram')) {
+    appendIfValue(form, 'media_type', request.assetType === 'image' ? config.instagramPhotoMediaType : config.instagramVideoMediaType);
+  }
+  if (request.platforms.includes('facebook') && request.assetType === 'video') {
+    appendIfValue(form, 'facebook_media_type', config.facebookMediaType);
+  }
+  if (request.platforms.includes('youtube')) {
+    appendIfValue(form, 'privacyStatus', config.youtubePrivacyStatus);
+    appendIfValue(form, 'categoryId', config.youtubeCategoryId);
+    if (config.youtubeTags.length) appendIfValue(form, 'tags', JSON.stringify(config.youtubeTags));
+  }
+
   const facebookPageId = request.facebookPageId || config.facebookPageId;
   const linkedinPageId = request.linkedinPageId || config.linkedinPageId;
   const pinterestBoardId = request.pinterestBoardId || config.pinterestBoardId;
@@ -348,52 +626,89 @@ async function buildSocialForm(request, config) {
   return form;
 }
 
-async function socialRequest(endpoint, formOrNull, method = 'POST', query = null) {
+export async function getSocialAccountsForUser(user) {
   const config = getSocialConfig();
   if (!config.configured) {
-    const error = new Error(`Social publishing is not configured. Missing: ${config.missing.join(', ')}.`);
-    error.code = 'social_unavailable';
-    throw error;
+    return {
+      ...getSocialReadiness(),
+      profileUsername: null,
+      lastSyncedAt: null,
+    };
   }
 
-  const url = new URL(cleanUrl(config.apiBaseUrl, endpoint));
-  if (query) {
-    Object.entries(query).forEach(([key, value]) => {
-      if (value) url.searchParams.set(key, value);
-    });
-  }
-
-  const response = await fetch(url, {
-    method,
-    headers: {
-      Authorization: `${config.authScheme} ${config.apiKey}`,
-    },
-    body: formOrNull || undefined,
-  });
-
-  const contentType = response.headers.get('content-type') || '';
-  const data = contentType.includes('application/json') ? await response.json() : await response.text();
-
-  if (!response.ok) {
-    const message = typeof data === 'object' && (data?.message || data?.error)
-      ? data.message || data.error
-      : `Social publishing request failed with HTTP ${response.status}`;
-    const error = new Error(message);
-    error.code = 'social_provider_error';
-    error.status = response.status;
-    error.payload = data;
-    throw error;
-  }
-
-  return data;
+  const synced = await syncUploadPostProfile(user);
+  return {
+    configured: true,
+    missing: [],
+    provider: 'upload-post',
+    profileConfigured: true,
+    profileUsername: synced.profileUsername,
+    lastSyncedAt: synced.lastSyncedAt,
+    platforms: socialPlatformsFromProfile(synced.profile),
+  };
 }
 
-export async function publishSocialPost(request) {
-  const config = getSocialConfig();
+export async function createSocialConnectSession({ user, redirectUrl }) {
+  const config = requireSocialConfig();
+  const synced = await syncUploadPostProfile(user);
+  const payload = {
+    username: synced.profileUsername,
+    redirect_url: text(redirectUrl) || undefined,
+    logo_image: config.connectLogoUrl || undefined,
+    redirect_button_text: config.connectRedirectButtonText,
+    connect_title: config.connectTitle,
+    connect_description: config.connectDescription,
+    platforms: config.connectPlatforms,
+    show_calendar: config.connectShowCalendar,
+    readonly_calendar: false,
+    language: 'en',
+  };
+
+  Object.keys(payload).forEach((key) => {
+    if (payload[key] === undefined || payload[key] === '') delete payload[key];
+  });
+
+  const response = await uploadPostRequest(config.endpoints.profileJwt, {
+    method: 'POST',
+    json: payload,
+  });
+  const accessUrl = text(response?.access_url || response?.accessUrl || response?.url || response?.connect_url);
+
+  if (!accessUrl) {
+    const error = new Error('Upload-Post did not return a hosted connection URL.');
+    error.code = 'social_provider_error';
+    error.payload = response;
+    throw error;
+  }
+
+  return {
+    provider: 'upload-post',
+    profileUsername: synced.profileUsername,
+    accessUrl,
+    expiresIn: response?.duration || null,
+    platforms: config.connectPlatforms,
+  };
+}
+
+export async function publishSocialPost({ user, request }) {
+  const config = requireSocialConfig();
   validateRequiredTargets(request, config);
-  const form = await buildSocialForm(request, config);
+
+  const accounts = await getSocialAccountsForUser(user);
+  const disconnected = disconnectedPlatformsFor(request, accounts.platforms);
+  if (disconnected.length) {
+    const labels = disconnected
+      .map((id) => SOCIAL_PLATFORMS[id]?.label || id)
+      .join(', ');
+    const error = new Error(`Connect these social accounts before publishing: ${labels}.`);
+    error.code = 'invalid_social_request';
+    error.disconnected = disconnected;
+    throw error;
+  }
+
+  const form = await buildSocialForm(request, config, accounts.profileUsername);
   const endpoint = config.endpoints[request.assetType];
-  const response = await socialRequest(endpoint, form);
+  const response = await uploadPostRequest(endpoint, { method: 'POST', form });
 
   return {
     status: request.scheduledDate ? 'scheduled' : 'submitted',
@@ -401,6 +716,7 @@ export async function publishSocialPost(request) {
     jobId: response?.job_id || null,
     scheduledDate: response?.scheduled_date || request.scheduledDate || null,
     platforms: request.platforms,
+    profileUsername: accounts.profileUsername,
     results: response?.results || null,
     usage: response?.usage || null,
     raw: response,
@@ -417,7 +733,7 @@ export async function getSocialPostStatus(requestId) {
 
   const config = getSocialConfig();
   const statusKey = id.startsWith('scheduler_job_') ? 'job_id' : 'request_id';
-  const response = await socialRequest(config.endpoints.status, null, 'GET', { [statusKey]: id });
+  const response = await uploadPostRequest(config.endpoints.status, { method: 'GET', query: { [statusKey]: id } });
   return {
     requestId: id,
     status: response?.status || response?.state || 'unknown',
