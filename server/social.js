@@ -85,6 +85,11 @@ function text(value, fallback = '') {
   return `${raw}`.replace(/\s+/g, ' ').trim();
 }
 
+function secret(value, fallback = '') {
+  const raw = value === undefined || value === null || value === '' ? fallback : value;
+  return `${raw}`.replace(/\s+/g, '').trim();
+}
+
 function bool(value, fallback = false) {
   if (value === undefined || value === null || value === '') return fallback;
   return ['1', 'true', 'yes', 'on'].includes(`${value}`.toLowerCase());
@@ -161,7 +166,7 @@ async function remoteImageBlob(mediaUrl) {
 
 function getSocialConfig() {
   const config = {
-    apiKey: text(process.env.UPLOAD_POST_API_KEY || process.env.OWLGORITHM_SOCIAL_API_KEY),
+    apiKey: secret(process.env.UPLOAD_POST_API_KEY || process.env.OWLGORITHM_SOCIAL_API_KEY),
     apiBaseUrl: text(process.env.UPLOAD_POST_API_BASE_URL || process.env.OWLGORITHM_SOCIAL_API_BASE_URL, DEFAULT_API_BASE_URL),
     profileUsername: text(process.env.UPLOAD_POST_PROFILE_USERNAME || process.env.UPLOAD_POST_USER || process.env.OWLGORITHM_SOCIAL_PROFILE),
     authScheme: text(process.env.UPLOAD_POST_AUTH_SCHEME || process.env.OWLGORITHM_SOCIAL_AUTH_SCHEME, 'Apikey'),
