@@ -14,7 +14,7 @@ import PageWrapper from '@/components/shared/PageWrapper';
 import PlatformIcon from '@/components/shared/PlatformIcon';
 import StatusBadge from '@/components/shared/StatusBadge';
 import { apiRequest } from '@/lib/api';
-import { appRedirectUrl, openHostedSocialConnect } from '@/lib/nativeBridge';
+import { appRedirectUrl, openHostedSocialConnect, reserveHostedSocialConnectWindow } from '@/lib/nativeBridge';
 import { cn } from '@/lib/utils';
 
 function accountLabel(account) {
@@ -70,6 +70,7 @@ export default function SocialConnect() {
   }, [refreshAccounts]);
 
   async function connectSocials() {
+    const connectWindow = reserveHostedSocialConnectWindow();
     setBusy('connect');
     setError(null);
     setNotice(null);
@@ -81,9 +82,10 @@ export default function SocialConnect() {
           redirectUrl: appRedirectUrl('/platforms?social=connected'),
         },
       });
-      const opened = openHostedSocialConnect(session.accessUrl);
+      const opened = openHostedSocialConnect(session.accessUrl, connectWindow);
       setNotice(opened === 'native' ? 'Upload-Post connect opened in the secure iOS session.' : 'Upload-Post connect opened.');
     } catch (connectError) {
+      if (connectWindow && !connectWindow.closed) connectWindow.close();
       setError(connectError.message);
     } finally {
       setBusy(null);

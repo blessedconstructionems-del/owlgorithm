@@ -50,10 +50,12 @@ Important variables:
 - `OWLGORITHM_SUPPORT_MODEL`: Support Owl chat model, default `grok-4.3`
 - `UPLOAD_POST_API_KEY`: server-side Upload-Post master API key; never ship it in an iOS or browser bundle
 - `UPLOAD_POST_API_BASE_URL`: Upload-Post API base URL, default `https://api.upload-post.com/api`
-- `UPLOAD_POST_PROFILE_USERNAME`: optional fixed Upload-Post profile username for single-profile deployments, such as `oracle`; leave blank for per-Owlgorithm-user `owl_<userId>` profiles
+- `UPLOAD_POST_PROFILE_USERNAME`: optional fixed Upload-Post profile username, such as `oracle`; in default `hybrid` mode this preserves existing local mappings while new users get per-user `owl_<userId>` profiles
+- `UPLOAD_POST_PROFILE_MODE`: `hybrid` by default; use `shared` only when every user should publish through `UPLOAD_POST_PROFILE_USERNAME`
 - `UPLOAD_POST_AUTH_SCHEME`: optional API auth scheme, default `Apikey`
 - `UPLOAD_POST_TIMEZONE`: optional scheduler timezone, default `America/New_York`
-- `UPLOAD_POST_CONNECT_PLATFORMS`: hosted connect page platforms, default `tiktok,instagram,linkedin,facebook,x,threads,google_business`
+- `UPLOAD_POST_CONNECT_PLATFORMS`: hosted connect page platforms, default `tiktok,instagram,youtube,linkedin,facebook,x,threads,pinterest,reddit,bluesky,google_business`
+- `UPLOAD_POST_CONNECT_STRICT`: set `true` only when the hosted connect page should use exactly `UPLOAD_POST_CONNECT_PLATFORMS`; otherwise Owlgorithm includes all supported connectable platforms
 - `UPLOAD_POST_FACEBOOK_PAGE_ID`: optional Facebook page target for publishing
 - `UPLOAD_POST_LINKEDIN_PAGE_ID`: optional LinkedIn organization target for publishing
 - `UPLOAD_POST_PINTEREST_BOARD_ID`: required when posting to Pinterest

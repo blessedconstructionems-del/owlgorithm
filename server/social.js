@@ -7,7 +7,7 @@ const DEFAULT_TEXT_ENDPOINT = '/api/upload_text';
 const DEFAULT_STATUS_ENDPOINT = '/api/uploadposts/status';
 const DEFAULT_PROFILE_ENDPOINT = '/api/uploadposts/users';
 const DEFAULT_PROFILE_JWT_ENDPOINT = '/api/uploadposts/users/generate-jwt';
-const DEFAULT_CONNECT_PLATFORMS = 'tiktok,instagram,linkedin,facebook,x,threads,google_business';
+const DEFAULT_CONNECT_PLATFORMS = 'tiktok,instagram,youtube,linkedin,facebook,x,threads,pinterest,reddit,bluesky,google_business';
 
 const SOCIAL_PLATFORMS = {
   tiktok: {
@@ -102,6 +102,18 @@ function csv(value, fallback = '') {
     .filter(Boolean);
 }
 
+function fullConnectPlatformList(value, fallback = DEFAULT_CONNECT_PLATFORMS) {
+  const requested = csv(value, fallback);
+  if (bool(process.env.UPLOAD_POST_CONNECT_STRICT || process.env.OWLGORITHM_SOCIAL_CONNECT_STRICT, false)) {
+    return requested;
+  }
+
+  return [...new Set([
+    ...requested,
+    ...csv(DEFAULT_CONNECT_PLATFORMS),
+  ])];
+}
+
 function cleanUrl(baseUrl, endpoint) {
   const base = `${baseUrl || ''}`.replace(/\/+$/, '');
   let path = `${endpoint || ''}`.startsWith('/') ? endpoint : `/${endpoint || ''}`;
@@ -169,6 +181,7 @@ function getSocialConfig() {
     apiKey: secret(process.env.UPLOAD_POST_API_KEY || process.env.OWLGORITHM_SOCIAL_API_KEY),
     apiBaseUrl: text(process.env.UPLOAD_POST_API_BASE_URL || process.env.OWLGORITHM_SOCIAL_API_BASE_URL, DEFAULT_API_BASE_URL),
     profileUsername: text(process.env.UPLOAD_POST_PROFILE_USERNAME || process.env.UPLOAD_POST_USER || process.env.OWLGORITHM_SOCIAL_PROFILE),
+    profileMode: text(process.env.UPLOAD_POST_PROFILE_MODE || process.env.OWLGORITHM_SOCIAL_PROFILE_MODE, 'hybrid').toLowerCase(),
     authScheme: text(process.env.UPLOAD_POST_AUTH_SCHEME || process.env.OWLGORITHM_SOCIAL_AUTH_SCHEME, 'Apikey'),
     timezone: text(process.env.UPLOAD_POST_TIMEZONE || process.env.OWLGORITHM_SOCIAL_TIMEZONE, 'America/New_York'),
     facebookPageId: text(process.env.UPLOAD_POST_FACEBOOK_PAGE_ID || process.env.OWLGORITHM_SOCIAL_FACEBOOK_PAGE_ID),
@@ -179,7 +192,7 @@ function getSocialConfig() {
       process.env.UPLOAD_POST_GOOGLE_BUSINESS_LOCATION_ID || process.env.OWLGORITHM_SOCIAL_GOOGLE_BUSINESS_LOCATION_ID,
     ),
     asyncUpload: bool(process.env.UPLOAD_POST_ASYNC_UPLOAD || process.env.OWLGORITHM_SOCIAL_ASYNC_UPLOAD, true),
-    connectPlatforms: csv(
+    connectPlatforms: fullConnectPlatformList(
       process.env.UPLOAD_POST_CONNECT_PLATFORMS || process.env.OWLGORITHM_SOCIAL_CONNECT_PLATFORMS,
       DEFAULT_CONNECT_PLATFORMS,
     ),
@@ -374,6 +387,19 @@ function profileUsernameForUser(user) {
   return `owl_${userId}`;
 }
 
+function shouldUseSharedProfile(config) {
+  return Boolean(
+    config.profileUsername
+      && ['shared', 'single', 'single_profile', 'global'].includes(config.profileMode),
+  );
+}
+
+function resolveProfileUsername({ user, config, existing }) {
+  if (shouldUseSharedProfile(config)) return config.profileUsername;
+  if (existing?.profileUsername) return existing.profileUsername;
+  return profileUsernameForUser(user);
+}
+
 function accountKeysForPlatform(platform) {
   return ACCOUNT_ALIASES[platform] || [platform];
 }
@@ -544,7 +570,7 @@ async function createRemoteProfile(username) {
 async function syncUploadPostProfile(user) {
   const config = requireSocialConfig();
   const existing = getSocialProfileByUserId(user.id);
-  const profileUsername = config.profileUsername || existing?.profileUsername || profileUsernameForUser(user);
+  const profileUsername = resolveProfileUsername({ user, config, existing });
   let remoteProfile = await fetchRemoteProfile(profileUsername);
   if (!remoteProfile) {
     remoteProfile = await createRemoteProfile(profileUsername);

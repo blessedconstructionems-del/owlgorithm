@@ -86,12 +86,16 @@ services:
         value: https://api.upload-post.com/api
       - key: UPLOAD_POST_PROFILE_USERNAME
         sync: false
+      - key: UPLOAD_POST_PROFILE_MODE
+        value: hybrid
       - key: UPLOAD_POST_AUTH_SCHEME
         value: Apikey
       - key: UPLOAD_POST_TIMEZONE
         value: America/New_York
       - key: UPLOAD_POST_CONNECT_PLATFORMS
-        value: tiktok,instagram,linkedin,facebook,x,threads,google_business
+        value: tiktok,instagram,youtube,linkedin,facebook,x,threads,pinterest,reddit,bluesky,google_business
+      - key: UPLOAD_POST_CONNECT_STRICT
+        value: "false"
       - key: UPLOAD_POST_FACEBOOK_PAGE_ID
         sync: false
       - key: UPLOAD_POST_LINKEDIN_PAGE_ID
