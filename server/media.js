@@ -51,17 +51,22 @@ function envValue(...keys) {
 }
 
 function mediaConfig() {
-  const apiKey = envValue('OWLGORITHM_MEDIA_API_KEY', 'XAI_API_KEY', 'GROK_API_KEY');
-  const hasXaiAlias = Boolean(envValue('XAI_API_KEY', 'GROK_API_KEY'));
+  const mediaApiKey = envValue('OWLGORITHM_MEDIA_API_KEY');
+  const xaiApiKey = envValue('XAI_API_KEY', 'GROK_API_KEY');
+  const hasXaiAlias = Boolean(xaiApiKey);
+  const explicitMediaBaseUrl = envValue('OWLGORITHM_MEDIA_API_BASE_URL');
   const baseUrl = envValue('OWLGORITHM_MEDIA_API_BASE_URL', 'XAI_API_BASE_URL', 'GROK_API_BASE_URL')
     || (hasXaiAlias ? XAI_API_BASE_URL : '');
+  const normalizedBaseUrl = baseUrl.replace(/\/+$/, '');
+  const usesXai = normalizedBaseUrl.includes('api.x.ai') || Boolean(hasXaiAlias && !explicitMediaBaseUrl);
+  const apiKey = usesXai ? (xaiApiKey || mediaApiKey) : (mediaApiKey || xaiApiKey);
   const imageModel = envValue('OWLGORITHM_MEDIA_IMAGE_MODEL', 'XAI_IMAGE_MODEL', 'GROK_IMAGE_MODEL')
     || (hasXaiAlias ? XAI_IMAGE_MODEL : '');
   const videoModel = envValue('OWLGORITHM_MEDIA_VIDEO_MODEL', 'XAI_VIDEO_MODEL', 'GROK_VIDEO_MODEL')
     || (hasXaiAlias ? XAI_VIDEO_MODEL : '');
   const config = {
     apiKey,
-    baseUrl: baseUrl.replace(/\/+$/, ''),
+    baseUrl: normalizedBaseUrl,
     imageModel,
     videoModel,
   };
