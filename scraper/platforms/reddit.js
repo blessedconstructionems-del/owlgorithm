@@ -18,6 +18,7 @@ export async function scrapeRedditTrending() {
 
     const category = row.find('category').first();
     const subreddit = cleanWhitespace(category.attr('label') || category.attr('term'));
+    const contentHtml = row.find('content').first().html() || '';
 
     results.push({
       name,
@@ -26,6 +27,9 @@ export async function scrapeRedditTrending() {
       comments: 0,
       subreddit: subreddit ? `r/${subreddit.replace(/^r\//i, '')}` : '',
       source: 'reddit-rss',
+      sourceUrl: row.find('link[rel="alternate"]').attr('href') || row.find('link').first().attr('href') || null,
+      imageUrl: row.find('media\\:thumbnail').first().attr('url') || extractFirstImage(contentHtml),
+      mediaType: 'headline',
       scrapedAt,
       publishedAt: cleanWhitespace(row.find('published').first().text() || row.find('updated').first().text()) || scrapedAt,
     });
@@ -34,4 +38,9 @@ export async function scrapeRedditTrending() {
   const deduped = uniqueByName(results).slice(0, 40);
   console.log(`[Reddit] Total trends: ${deduped.length}`);
   return deduped;
+}
+
+function extractFirstImage(contentHtml) {
+  const match = `${contentHtml || ''}`.match(/<img[^>]+src=["']([^"']+)["']/i);
+  return match?.[1] || null;
 }

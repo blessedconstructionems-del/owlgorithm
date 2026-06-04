@@ -1,105 +1,569 @@
-import { createElement, useMemo } from 'react';
+import { createElement, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  Area,
+  AreaChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
 } from 'recharts';
 import {
-  Activity, AlertCircle, ArrowUpRight, ChevronRight, Clock, Database, Link2,
-  Moon, Palette, Radar, Send, Settings, TrendingUp,
+  Activity,
+  AlertCircle,
+  ArrowRight,
+  ArrowUpRight,
+  BarChart3,
+  Clock,
+  Database,
+  Link2,
+  Moon,
+  RefreshCw,
+  Send,
+  Sparkles,
+  TrendingUp,
+  Zap,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 
 import { cn } from '@/lib/utils';
 import { useApp } from '@/context/AppContext';
-import GlassCard from '@/components/shared/GlassCard';
 import PageWrapper from '@/components/shared/PageWrapper';
-import StatusBadge from '@/components/shared/StatusBadge';
 import PlatformIcon from '@/components/shared/PlatformIcon';
-import CircularProgress from '@/components/shared/CircularProgress';
-import AnimatedNumber from '@/components/shared/AnimatedNumber';
 import SignalMark from '@/components/shared/SignalMark';
-
-import { useTrendsData } from '@/data/trends';
+import { refreshTrends, useTrendsData } from '@/data/trends';
 import TrendPulseRadar from '@/components/dashboard/TrendPulseRadar';
-import OpportunityScanner from '@/components/dashboard/OpportunityScanner';
+import TrendMediaPreview from '@/components/trends/TrendMediaPreview';
+import {
+  aggregatePlatforms,
+  aggregateTrendHistory,
+  formatCompactNumber,
+  getFastestGrowing,
+  getFreshnessState,
+  getTopOpportunities,
+} from '@/lib/trendMetrics';
+import { getTopMediaTrend } from '@/lib/trendMedia';
 
-const stagger = {
-  container: { animate: { transition: { staggerChildren: 0.08 } } },
+const DASHBOARD_MOTION = {
+  container: { animate: { transition: { staggerChildren: 0.07 } } },
   item: {
-    initial: { opacity: 0, y: 24 },
-    animate: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] } },
+    initial: { opacity: 0, y: 18 },
+    animate: {
+      opacity: 1,
+      y: 0,
+      transition: { duration: 0.42, ease: [0.25, 0.46, 0.45, 0.94] },
+    },
   },
 };
 
+const DASHBOARD_LIMITS = {
+  primaryOpportunityScore: 70,
+  visiblePlatforms: 4,
+  opportunityListSize: 3,
+  chartPoints: 14,
+};
+
+const CHART_STYLE = {
+  areaStrokeWidth: 2.5,
+  activeDotRadius: 5,
+  activeDotStrokeWidth: 3,
+};
+
+const SATURATION_ORDER = ['emerging', 'rising', 'peak', 'declining'];
+
+const SATURATION_LABELS = {
+  emerging: 'Emerging',
+  rising: 'Rising',
+  peak: 'Peak',
+  declining: 'Declining',
+};
+
+const WINDOW_BY_SATURATION = {
+  emerging: 'Early window',
+  rising: 'Move this week',
+  peak: 'Act today',
+  declining: 'Avoid unless owned',
+};
+
+const NEXT_ACTIONS = [
+  {
+    icon: Send,
+    title: 'Build a post',
+    detail: 'Use the strongest trend and publish path.',
+    to: '/post-now',
+  },
+  {
+    icon: Link2,
+    title: 'Connect channels',
+    detail: 'Verify Upload-Post accounts before publishing.',
+    to: '/platforms',
+  },
+  {
+    icon: Moon,
+    title: 'Queue overnight',
+    detail: 'Send the best signals into Night Watch.',
+    to: '/night-watch',
+  },
+];
+
 function getGreeting() {
-  const h = new Date().getHours();
-  if (h < 12) return 'Good morning';
-  if (h < 18) return 'Good afternoon';
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 18) return 'Good afternoon';
   return 'Good evening';
 }
 
-function satColor(s) {
-  const v = s?.toLowerCase();
-  if (v === 'emerging') return 'text-emerald-400 bg-emerald-500/15';
-  if (v === 'rising') return 'text-blue-400 bg-blue-500/15';
-  if (v === 'peak') return 'text-amber-400 bg-amber-500/15';
-  if (v === 'declining') return 'text-red-400 bg-red-500/15';
-  return 'text-gray-400 bg-gray-500/15';
+function formatUpdatedLabel(lastUpdated) {
+  if (!lastUpdated) return 'Not refreshed yet';
+
+  try {
+    return format(parseISO(lastUpdated), 'MMM d, h:mm a');
+  } catch {
+    return lastUpdated;
+  }
 }
 
-function ChartTooltip({ active, payload, label }) {
-  if (!active || !payload?.length) return null;
+function formatSignedPercent(value) {
+  const numeric = Number(value) || 0;
+  const sign = numeric > 0 ? '+' : '';
+  return `${sign}${numeric}%`;
+}
+
+function countSaturation(trends) {
+  return trends.reduce((counts, trend) => {
+    const key = trend.saturation?.toLowerCase();
+    if (SATURATION_ORDER.includes(key)) {
+      counts[key] += 1;
+    }
+    return counts;
+  }, {
+    emerging: 0,
+    rising: 0,
+    peak: 0,
+    declining: 0,
+  });
+}
+
+function averageBy(trends, key) {
+  if (!trends.length) return 0;
+  const total = trends.reduce((sum, trend) => sum + (Number(trend[key]) || 0), 0);
+  return Math.round(total / trends.length);
+}
+
+function getMarketLabel(avgMomentum, avgVelocity) {
+  if (avgVelocity >= 10 || avgMomentum >= 70) return 'Accelerating';
+  if (avgVelocity >= 3) return 'Building';
+  if (avgVelocity <= -3) return 'Cooling';
+  return 'Stable';
+}
+
+function getStatusTone({ serverAvailable, hasTrends, isLoading, freshness }) {
+  if (isLoading) return 'info';
+  if (!serverAvailable && !hasTrends) return 'danger';
+  if (freshness?.stale) return 'warning';
+  return 'success';
+}
+
+function buildOpportunityReason(trend) {
+  if (!trend) return 'Waiting for live trend records from the backend.';
+
+  const reasons = [];
+  const saturation = trend.saturation?.toLowerCase();
+  const competition = trend.competition?.toLowerCase();
+
+  if ((trend.opportunityScore || 0) >= DASHBOARD_LIMITS.primaryOpportunityScore) {
+    reasons.push('strong opportunity score');
+  }
+  if (saturation === 'emerging' || saturation === 'rising') {
+    reasons.push(WINDOW_BY_SATURATION[saturation].toLowerCase());
+  }
+  if ((trend.growthVelocity || 0) > 0) {
+    reasons.push(`${formatSignedPercent(trend.growthVelocity)} velocity`);
+  }
+  if (competition === 'low') {
+    reasons.push('low competition');
+  }
+
+  return reasons.length
+    ? reasons.slice(0, 3).join(' / ')
+    : 'Best available score from the current live feed.';
+}
+
+function getPrimaryPlatformLabel(platforms) {
+  if (!platforms.length) return 'No source yet';
+  if (platforms.length === 1) return platforms[0].label;
+  return `${platforms[0].label} + ${platforms.length - 1}`;
+}
+
+function DashboardSurface({ className, children, ...props }) {
   return (
-    <div className="glass-card !p-3 rounded-xl border border-white/10 shadow-xl">
-      <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-1">{label}</p>
-      <p className="text-white font-bold text-sm tabular-nums">
-        {typeof payload[0].value === 'number' ? Math.round(payload[0].value).toLocaleString() : payload[0].value}
+    <section className={cn('dashboard-surface', className)} {...props}>
+      {children}
+    </section>
+  );
+}
+
+function DashboardChartTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+
+  return (
+    <div className="dashboard-chart-tooltip">
+      <p className="dashboard-chart-tooltip-label">{label}</p>
+      <p className="dashboard-chart-tooltip-value">
+        {Math.round(payload[0].value).toLocaleString()}
       </p>
     </div>
   );
 }
 
-function buildMomentumSeries(trends) {
-  const points = new Map();
-
-  for (const trend of trends.slice(0, 12)) {
-    for (const point of trend.history || []) {
-      if (!point?.day || typeof point.value !== 'number') continue;
-      const bucket = points.get(point.day) || { day: point.day, total: 0, count: 0 };
-      bucket.total += point.value;
-      bucket.count += 1;
-      points.set(point.day, bucket);
-    }
-  }
-
-  return [...points.values()]
-    .sort((a, b) => a.day.localeCompare(b.day))
-    .slice(-14)
-    .map((point) => ({
-      day: point.day,
-      value: point.count ? point.total / point.count : 0,
-    }));
-}
-
-function EmptyState({ title, message, actionLabel, actionTo }) {
+function EmptyDataPanel({ title, message, actionTo, actionLabel }) {
   return (
-    <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] px-5 py-8 text-center">
-      <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-white/[0.04] text-gray-500">
-        <Database size={18} />
-      </div>
-      <h3 className="text-sm font-semibold text-white">{title}</h3>
-      <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-gray-500">{message}</p>
+    <div className="dashboard-empty-state">
+      <Database size={20} />
+      <h3>{title}</h3>
+      <p>{message}</p>
       {actionTo ? (
-        <Link
-          to={actionTo}
-          className="mt-4 inline-flex items-center gap-1.5 rounded-xl border border-blue-500/25 bg-blue-500/10 px-3 py-2 text-xs font-semibold text-blue-300 transition-colors hover:bg-blue-500/15"
-        >
+        <Link to={actionTo} className="dashboard-text-link">
           {actionLabel}
-          <ChevronRight size={14} />
+          <ArrowRight size={14} />
         </Link>
       ) : null}
     </div>
+  );
+}
+
+function HeaderStatus({ tone, label, detail }) {
+  return (
+    <div className={cn('dashboard-status-pill', `dashboard-tone-${tone}`)}>
+      <span className="dashboard-status-dot" />
+      <span>{label}</span>
+      <span className="dashboard-status-detail">{detail}</span>
+    </div>
+  );
+}
+
+function PlatformStack({ platforms }) {
+  const visiblePlatforms = platforms.slice(0, DASHBOARD_LIMITS.visiblePlatforms);
+  const remaining = platforms.length - visiblePlatforms.length;
+
+  if (!visiblePlatforms.length) {
+    return <span className="dashboard-muted-text">No source platforms</span>;
+  }
+
+  return (
+    <div className="dashboard-platform-stack">
+      {visiblePlatforms.map((platform) => (
+        <PlatformIcon key={platform} platform={platform} size={20} />
+      ))}
+      {remaining > 0 ? (
+        <span className="dashboard-platform-overflow">+{remaining}</span>
+      ) : null}
+    </div>
+  );
+}
+
+function IntelligenceRail({ stats, freshness, bestTrend }) {
+  const freshnessDetail = freshness.relative === 'never' ? 'No cache' : freshness.relative;
+  const bestWindow = WINDOW_BY_SATURATION[bestTrend?.saturation?.toLowerCase()] || 'Awaiting signal';
+  const crowding = stats.peak + stats.declining;
+
+  return (
+    <DashboardSurface className="dashboard-intelligence-rail">
+      <div className="dashboard-section-heading">
+        <div>
+          <p className="dashboard-eyebrow">Decision Signal</p>
+          <h2>Intelligence Rail</h2>
+        </div>
+        <Sparkles size={18} />
+      </div>
+
+      <div className="dashboard-rail-list">
+        <RailRow
+          icon={Activity}
+          label="Live signal"
+          value={formatCompactNumber(stats.count)}
+          detail={`${stats.activePlatforms} public sources`}
+          tone="info"
+        />
+        <RailRow
+          icon={Clock}
+          label="Best window"
+          value={bestWindow}
+          detail={bestTrend?.name || 'No trend selected yet'}
+          tone="success"
+        />
+        <RailRow
+          icon={Zap}
+          label="Opportunity"
+          value={bestTrend ? `${bestTrend.opportunityScore || 0}` : '0'}
+          detail={bestTrend ? buildOpportunityReason(bestTrend) : 'Waiting for scraper results'}
+          tone="warning"
+        />
+        <RailRow
+          icon={BarChart3}
+          label="Crowding risk"
+          value={formatCompactNumber(crowding)}
+          detail={`${stats.peak} peak / ${stats.declining} declining`}
+          tone={crowding > stats.count / 2 ? 'danger' : 'success'}
+        />
+      </div>
+
+      <div className="dashboard-freshness-line">
+        <span>Feed freshness</span>
+        <strong>{freshnessDetail}</strong>
+      </div>
+    </DashboardSurface>
+  );
+}
+
+function RailRow({ icon: Icon, label, value, detail, tone }) {
+  const isNumeric = /^[0-9+-]/.test(`${value}`);
+
+  return (
+    <div className="dashboard-rail-row">
+      <div className={cn('dashboard-rail-icon', `dashboard-tone-${tone}`)}>
+        {createElement(Icon, { size: 16 })}
+      </div>
+      <div className="dashboard-rail-copy">
+        <span>{label}</span>
+        <strong className={cn(isNumeric && 'dashboard-mono dashboard-number')}>{value}</strong>
+        <p>{detail}</p>
+      </div>
+    </div>
+  );
+}
+
+function OpportunityBrief({ bestTrend, opportunities, mediaTrend }) {
+  if (!bestTrend) {
+    return (
+      <DashboardSurface className="dashboard-opportunity-brief">
+        <div className="dashboard-section-heading">
+          <div>
+            <p className="dashboard-eyebrow">Next Move</p>
+            <h2>Opportunity Brief</h2>
+          </div>
+          <TrendingUp size={18} />
+        </div>
+        <EmptyDataPanel
+          title="No opportunity ranked yet"
+          message="The brief appears when the backend trend feed includes live opportunity scores."
+          actionTo="/trends"
+          actionLabel="Open Trend Radar"
+        />
+      </DashboardSurface>
+    );
+  }
+
+  return (
+    <DashboardSurface className="dashboard-opportunity-brief">
+      <div className="dashboard-section-heading">
+        <div>
+          <p className="dashboard-eyebrow">Next Move</p>
+          <h2>Opportunity Brief</h2>
+        </div>
+        <TrendingUp size={18} />
+      </div>
+
+      <div className="dashboard-opportunity-main">
+        <span className="dashboard-opportunity-score dashboard-mono">
+          {bestTrend.opportunityScore || 0}
+        </span>
+        <div>
+          <h3>{bestTrend.name}</h3>
+          <p>{buildOpportunityReason(bestTrend)}</p>
+        </div>
+      </div>
+
+      <div className="dashboard-opportunity-meta">
+        <div>
+          <span>Saturation</span>
+          <strong>{bestTrend.saturation || 'Unknown'}</strong>
+        </div>
+        <div>
+          <span>Momentum</span>
+          <strong>{bestTrend.momentum || 0}</strong>
+        </div>
+        <div>
+          <span>Velocity</span>
+          <strong>{formatSignedPercent(bestTrend.growthVelocity)}</strong>
+        </div>
+      </div>
+
+      <div className="dashboard-opportunity-sources">
+        <PlatformStack platforms={bestTrend.platforms || []} />
+      </div>
+
+      <TrendMediaPreview
+        trend={mediaTrend || bestTrend}
+        eyebrow="Highest-View Media"
+        compact
+        className="dashboard-media-slot"
+      />
+
+      <div className="dashboard-ranked-list">
+        {opportunities.slice(1, DASHBOARD_LIMITS.opportunityListSize).map((trend, index) => (
+          <Link key={trend.id || trend.name} to="/trends" className="dashboard-ranked-row">
+            <span className="dashboard-mono">0{index + 2}</span>
+            <strong>{trend.name}</strong>
+            <em>{trend.opportunityScore || 0}</em>
+          </Link>
+        ))}
+      </div>
+
+      <div className="dashboard-action-row">
+        <Link to="/post-now" className="dashboard-button dashboard-button-primary">
+          Build from this
+          <ArrowRight size={16} />
+        </Link>
+        <Link to="/trends" className="dashboard-button dashboard-button-secondary">
+          Inspect
+          <ArrowUpRight size={15} />
+        </Link>
+      </div>
+    </DashboardSurface>
+  );
+}
+
+function MarketDirection({ stats, history, fastestTrend }) {
+  return (
+    <DashboardSurface className="dashboard-market-direction">
+      <div className="dashboard-section-heading">
+        <div>
+          <p className="dashboard-eyebrow">Market Direction</p>
+          <h2>{stats.marketLabel}</h2>
+        </div>
+        <BarChart3 size={18} />
+      </div>
+
+      <div className="dashboard-market-metrics">
+        <div>
+          <span>Avg momentum</span>
+          <strong className="dashboard-mono">{stats.avgMomentum}</strong>
+        </div>
+        <div>
+          <span>Avg velocity</span>
+          <strong className="dashboard-mono">{formatSignedPercent(stats.avgVelocity)}</strong>
+        </div>
+      </div>
+
+      {history.length > 1 ? (
+        <div className="dashboard-chart-frame">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={history}>
+              <XAxis
+                dataKey="label"
+                tickLine={false}
+                axisLine={false}
+                tick={{ className: 'dashboard-chart-axis' }}
+              />
+              <YAxis hide domain={['dataMin - 5', 'dataMax + 5']} />
+              <Tooltip
+                content={<DashboardChartTooltip />}
+                cursor={{ stroke: 'var(--dash-border-strong)' }}
+              />
+              <Area
+                type="monotone"
+                dataKey="value"
+                stroke="var(--dash-accent-primary)"
+                strokeWidth={CHART_STYLE.areaStrokeWidth}
+                fill="url(#dashboardMomentumFill)"
+                activeDot={{
+                  r: CHART_STYLE.activeDotRadius,
+                  fill: 'var(--dash-accent-primary)',
+                  stroke: 'var(--dash-bg-canvas)',
+                  strokeWidth: CHART_STYLE.activeDotStrokeWidth,
+                }}
+              />
+              <defs>
+                <linearGradient id="dashboardMomentumFill" x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0%" stopColor="var(--dash-accent-primary)" stopOpacity="0.24" />
+                  <stop offset="100%" stopColor="var(--dash-accent-primary)" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      ) : (
+        <EmptyDataPanel
+          title="No momentum history"
+          message="History appears once live trend records include two or more dated readings."
+        />
+      )}
+
+      <div className="dashboard-saturation-grid">
+        {SATURATION_ORDER.map((key) => (
+          <SaturationBar
+            key={key}
+            label={SATURATION_LABELS[key]}
+            value={stats[key]}
+            total={Math.max(stats.count, 1)}
+            tone={key}
+          />
+        ))}
+      </div>
+
+      <div className="dashboard-freshness-line">
+        <span>Fastest riser</span>
+        <strong>{fastestTrend?.name || 'Awaiting signal'}</strong>
+      </div>
+    </DashboardSurface>
+  );
+}
+
+function SaturationBar({ label, value, total, tone }) {
+  const width = `${Math.round((value / total) * 100)}%`;
+
+  return (
+    <div className="dashboard-saturation-row">
+      <div>
+        <span>{label}</span>
+        <strong className="dashboard-mono">{value}</strong>
+      </div>
+      <div className="dashboard-saturation-track">
+        <span
+          className={cn('dashboard-saturation-fill', `dashboard-saturation-${tone}`)}
+          style={{ '--dash-bar-width': width }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function NextActionBar({ bestTrend, platformLabel }) {
+  return (
+    <DashboardSurface className="dashboard-next-actions">
+      <div className="dashboard-section-heading">
+        <div>
+          <p className="dashboard-eyebrow">Action Path</p>
+          <h2>Next Action</h2>
+        </div>
+        <Zap size={18} />
+      </div>
+
+      <p className="dashboard-next-summary">
+        {bestTrend
+          ? `Best current path: turn "${bestTrend.name}" into a post for ${platformLabel}.`
+          : 'Connect the feed and channels, then Owlgorithm will recommend a publishing path.'}
+      </p>
+
+      <div className="dashboard-action-list">
+        {NEXT_ACTIONS.map((action) => {
+          return (
+            <Link key={action.title} to={action.to} className="dashboard-action-link">
+              <span>
+                {createElement(action.icon, { size: 17 })}
+              </span>
+              <div>
+                <strong>{action.title}</strong>
+                <p>{action.detail}</p>
+              </div>
+              <ArrowRight size={15} />
+            </Link>
+          );
+        })}
+      </div>
+    </DashboardSurface>
   );
 }
 
@@ -112,276 +576,124 @@ export default function Dashboard() {
     lastUpdated,
     serverAvailable,
   } = useTrendsData(true);
+  const [manualRefreshing, setManualRefreshing] = useState(false);
+
+  const hasTrends = trendFeed.length > 0;
+  const isLoading = trendsStatus === 'loading' || trendsStatus === 'idle';
+  const isRefreshing = trendsStatus === 'refreshing' || manualRefreshing;
+
+  const opportunities = useMemo(
+    () => getTopOpportunities(trendFeed, DASHBOARD_LIMITS.opportunityListSize),
+    [trendFeed],
+  );
+  const fastestTrends = useMemo(() => getFastestGrowing(trendFeed, 1), [trendFeed]);
+  const topMediaTrend = useMemo(() => getTopMediaTrend(trendFeed), [trendFeed]);
+  const history = useMemo(
+    () => aggregateTrendHistory(trendFeed, DASHBOARD_LIMITS.chartPoints),
+    [trendFeed],
+  );
+  const platforms = useMemo(() => aggregatePlatforms(trendFeed), [trendFeed]);
+  const freshness = useMemo(() => getFreshnessState(lastUpdated), [lastUpdated]);
 
   const stats = useMemo(() => {
-    const count = trendFeed.length;
-    const emerging = trendFeed.filter((trend) => trend.saturation?.toLowerCase() === 'emerging').length;
-    const highOpportunity = trendFeed.filter((trend) => (trend.opportunityScore || 0) >= 70).length;
-    const avgMomentum = count
-      ? Math.round(trendFeed.reduce((sum, trend) => sum + (trend.momentum || 0), 0) / count)
-      : 0;
-    const activePlatforms = new Set(trendFeed.flatMap((trend) => trend.platforms || [])).size;
+    const saturationCounts = countSaturation(trendFeed);
+    const avgMomentum = averageBy(trendFeed, 'momentum');
+    const avgVelocity = averageBy(trendFeed, 'growthVelocity');
 
-    return { count, emerging, highOpportunity, avgMomentum, activePlatforms };
-  }, [trendFeed]);
+    return {
+      ...saturationCounts,
+      count: trendFeed.length,
+      activePlatforms: platforms.length,
+      avgMomentum,
+      avgVelocity,
+      marketLabel: getMarketLabel(avgMomentum, avgVelocity),
+    };
+  }, [platforms.length, trendFeed]);
 
-  const statCards = useMemo(() => [
-    {
-      label: 'Live Trends',
-      value: stats.count,
-      icon: Activity,
-      iconAccent: 'from-blue-500 to-cyan-400',
-      cardAccent: 'blue',
-    },
-    {
-      label: 'Emerging',
-      value: stats.emerging,
-      icon: TrendingUp,
-      iconAccent: 'from-emerald-500 to-teal-400',
-      cardAccent: 'emerald',
-    },
-    {
-      label: 'High Opportunity',
-      value: stats.highOpportunity,
-      icon: Radar,
-      iconAccent: 'from-purple-500 to-pink-400',
-      cardAccent: 'purple',
-    },
-    {
-      label: 'Avg Momentum',
-      value: stats.avgMomentum,
-      isCircular: true,
-      icon: Activity,
-      iconAccent: 'from-amber-500 to-orange-400',
-      cardAccent: 'amber',
-    },
-  ], [stats]);
+  const bestTrend = opportunities[0] || null;
+  const fastestTrend = fastestTrends[0] || null;
+  const platformLabel = getPrimaryPlatformLabel(platforms);
+  const statusTone = getStatusTone({ serverAvailable, hasTrends, isLoading, freshness });
+  const updatedLabel = formatUpdatedLabel(lastUpdated);
 
-  const trendingNow = useMemo(() => trendFeed.slice(0, 8), [trendFeed]);
-  const momentumSeries = useMemo(() => buildMomentumSeries(trendFeed), [trendFeed]);
-  const isLoading = trendsStatus === 'loading' || trendsStatus === 'idle';
-  const hasTrends = trendFeed.length > 0;
-
-  const updatedLabel = useMemo(() => {
-    if (!lastUpdated) return 'Not refreshed yet';
+  async function handleRefresh() {
+    setManualRefreshing(true);
     try {
-      return format(parseISO(lastUpdated), 'MMM d, h:mm a');
-    } catch {
-      return lastUpdated;
+      await refreshTrends();
+    } finally {
+      setManualRefreshing(false);
     }
-  }, [lastUpdated]);
-
-  const heroCopy = hasTrends
-    ? `Tracking ${stats.count} live signals across ${stats.activePlatforms} connected public sources.`
-    : 'No live trend data is loaded yet. Start the scraper or wait for the next scheduled refresh.';
-
-  const quickActions = [
-    { icon: Send, title: 'Post Now', desc: 'Open the beginner flow with radar pick, camera prompts, filled caption, and posting choices.', link: '/post-now' },
-    { icon: Radar, title: 'Open Trend Radar', desc: 'Inspect live trend signals, momentum, and source platforms.', link: '/trends' },
-    { icon: Moon, title: 'Open Night Watch', desc: 'Review the overnight build queue and risk board from live trend data.', link: '/night-watch' },
-    { icon: Link2, title: 'Connect Socials', desc: 'Link Upload-Post profiles and verify connected publishing accounts.', link: '/platforms' },
-    { icon: Palette, title: 'Open Creator Studio Pro', desc: 'Create social images, videos, captions, and advanced assets from trend signals.', link: '/media' },
-    { icon: Settings, title: 'Review Account Settings', desc: 'Manage profile, password, and workspace display preferences.', link: '/settings' },
-  ];
+  }
 
   return (
-    <PageWrapper>
-      <motion.div variants={stagger.container} initial="initial" animate="animate" className="space-y-8">
-        <motion.div variants={stagger.item} className="grid gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(360px,0.9fr)]">
-          <div className="relative overflow-hidden rounded-2xl border border-white/[0.1] bg-white/[0.04] shadow-[0_24px_64px_-24px_rgba(0,0,0,0.72)] backdrop-blur-xl">
-            <div className="absolute inset-0 bg-[linear-gradient(140deg,rgba(64,96,255,0.24),rgba(14,24,38,0.16),rgba(16,185,129,0.12))]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.1),transparent_34%),radial-gradient(circle_at_80%_30%,rgba(34,211,238,0.10),transparent_28%)]" />
-            <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(4,8,14,0.28),rgba(4,8,14,0.08)_48%,rgba(4,8,14,0.1))]" />
-
-            <div className="relative flex h-full items-center justify-between px-4 py-8 sm:px-8 md:min-h-[320px] md:py-12">
-              <div className="space-y-4 drop-shadow-[0_4px_22px_rgba(0,0,0,0.72)]">
-                <div className="flex flex-wrap items-center gap-2 text-white/80 text-sm font-medium">
-                  <span className={cn(
-                    'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs',
-                    serverAvailable
-                      ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
-                      : 'border-amber-500/25 bg-amber-500/10 text-amber-300',
-                  )}>
-                    <span className={cn('h-1.5 w-1.5 rounded-full', serverAvailable ? 'bg-emerald-400' : 'bg-amber-400')} />
-                    {serverAvailable ? 'API connected' : 'API unavailable'}
-                  </span>
-                  <span className="inline-flex items-center gap-1.5 text-white/60">
-                    <Clock size={13} />
-                    {updatedLabel}
-                  </span>
-                </div>
-                <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-white tracking-tight">
-                  {getGreeting()}, {user?.name || 'there'}
-                </h1>
-                <p className="max-w-md text-base leading-relaxed text-white/78">
-                  {heroCopy}
-                </p>
-                {trendsError ? (
-                  <div className="inline-flex max-w-xl items-start gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-100">
-                    <AlertCircle size={16} className="mt-0.5 shrink-0" />
-                    <span>{trendsError}</span>
-                  </div>
-                ) : null}
-              </div>
-              <div className="hidden lg:flex items-center gap-4">
-                <div className="animate-float">
-                  <SignalMark className="h-24 w-24 rounded-2xl border-white/[0.16] bg-[linear-gradient(160deg,rgba(8,15,28,0.42),rgba(14,86,122,0.34))] shadow-[0_22px_48px_-18px_rgba(0,0,0,0.8)] backdrop-blur-xl" />
-                </div>
-              </div>
+    <PageWrapper className="dashboard-page">
+      <motion.div
+        variants={DASHBOARD_MOTION.container}
+        initial="initial"
+        animate="animate"
+        className="dashboard-stack"
+      >
+        <motion.header variants={DASHBOARD_MOTION.item} className="dashboard-header">
+          <div className="dashboard-title-block">
+            <SignalMark className="dashboard-product-mark" />
+            <div>
+              <p className="dashboard-eyebrow">Owlgorithm Dashboard</p>
+              <h1>Signal Command</h1>
+              <p>
+                {hasTrends
+                  ? `${getGreeting()}, ${user?.name || 'there'}. Tracking ${formatCompactNumber(stats.count)} live signals across ${platformLabel}.`
+                  : `${getGreeting()}, ${user?.name || 'there'}. Live trend intelligence appears here as soon as the backend feed returns data.`}
+              </p>
             </div>
           </div>
 
-          <TrendPulseRadar />
-        </motion.div>
-
-        <motion.div variants={stagger.item} className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
-          {statCards.map((card) => {
-            const Icon = card.icon;
-            return (
-              <GlassCard key={card.label} hover={false} accent={card.cardAccent} className="!p-3 sm:!p-5 space-y-2 sm:space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">{card.label}</span>
-                  <div className={cn('w-9 h-9 rounded-xl bg-gradient-to-br flex items-center justify-center shadow-lg', card.iconAccent)}>
-                    <Icon size={15} className="text-white" />
-                  </div>
-                </div>
-                {card.isCircular ? (
-                  <div className="flex items-center gap-3">
-                    <CircularProgress value={card.value} max={100} size={52} strokeWidth={4} />
-                    <div>
-                      <span className="text-2xl font-extrabold text-white tabular-nums">{card.value}</span>
-                      <span className="text-gray-500 text-sm">/100</span>
-                    </div>
-                  </div>
-                ) : (
-                  <AnimatedNumber value={card.value} className="text-2xl sm:text-3xl font-extrabold text-white" />
-                )}
-              </GlassCard>
-            );
-          })}
-        </motion.div>
-
-        <motion.div variants={stagger.item}>
-          <OpportunityScanner />
-        </motion.div>
-
-        <motion.div variants={stagger.item}>
-          <div className="mb-5 flex items-center justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-bold text-white">Trending Now</h2>
-              <p className="text-xs text-gray-600 mt-0.5">Live trend intelligence from the backend scraper</p>
-            </div>
-            <Link to="/trends" className="flex items-center gap-1 text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors">
-              View all <ChevronRight size={14} />
+          <div className="dashboard-header-actions">
+            <HeaderStatus
+              tone={statusTone}
+              label={freshness.label}
+              detail={updatedLabel}
+            />
+            <button
+              type="button"
+              className="dashboard-button dashboard-button-secondary"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+            >
+              <RefreshCw size={16} className={cn(isRefreshing && 'dashboard-spin')} />
+              Refresh
+            </button>
+            <Link to="/post-now" className="dashboard-button dashboard-button-primary">
+              Create
+              <ArrowRight size={16} />
             </Link>
           </div>
-          {!hasTrends && !isLoading ? (
-            <EmptyState
-              title="No live trends yet"
-              message="The dashboard will populate after the scraper writes trend records to the backend cache."
-              actionLabel="Open Trend Radar"
-              actionTo="/trends"
-            />
-          ) : (
-            <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-none -mx-2 px-2">
-              {trendingNow.map((trend, i) => (
-                <motion.div
-                  key={trend.id}
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.1 + i * 0.05 }}
-                >
-                  <GlassCard className="min-w-[230px] max-w-[250px] shrink-0 !p-5 space-y-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm font-bold text-white leading-tight line-clamp-2">{trend.name}</p>
-                      <span className={cn('shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full', satColor(trend.saturation))}>
-                        {trend.momentum}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <StatusBadge status={trend.saturation} size="sm" />
-                      <span className="text-[10px] text-gray-600">{trend.type}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      {trend.platforms?.slice(0, 4).map((p) => (
-                        <PlatformIcon key={p} platform={p} size={18} />
-                      ))}
-                      {trend.platforms?.length > 4 && (
-                        <span className="text-[10px] text-gray-600">+{trend.platforms.length - 4}</span>
-                      )}
-                    </div>
-                  </GlassCard>
-                </motion.div>
-              ))}
-            </div>
-          )}
+        </motion.header>
+
+        {trendsError ? (
+          <motion.div
+            variants={DASHBOARD_MOTION.item}
+            className="dashboard-alert"
+            role="status"
+            aria-live="polite"
+          >
+            <AlertCircle size={18} />
+            <span>{trendsError}</span>
+          </motion.div>
+        ) : null}
+
+        <motion.div variants={DASHBOARD_MOTION.item} className="dashboard-primary-grid">
+          <TrendPulseRadar trendItems={trendFeed} />
+          <IntelligenceRail stats={stats} freshness={freshness} bestTrend={bestTrend} />
         </motion.div>
 
-        <motion.div variants={stagger.item} className="grid grid-cols-1 xl:grid-cols-5 gap-6">
-          <div className="xl:col-span-3">
-            <div className="mb-5 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-white">Momentum Snapshot</h2>
-              <span className="text-xs text-gray-600">Average of top live trend history</span>
-            </div>
-            <GlassCard hover={false} accent="blue" className="!p-5">
-              {momentumSeries.length > 1 ? (
-                <div className="h-[260px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={momentumSeries}>
-                      <XAxis
-                        dataKey="day"
-                        tick={{ fill: '#4B5563', fontSize: 11 }}
-                        axisLine={false}
-                        tickLine={false}
-                        tickFormatter={(v) => { try { return format(new Date(v), 'MMM d'); } catch { return v; }}}
-                      />
-                      <YAxis hide domain={['dataMin - 5', 'dataMax + 5']} />
-                      <Tooltip content={<ChartTooltip />} cursor={{ stroke: 'rgba(255,255,255,0.06)' }} />
-                      <Line
-                        type="monotone"
-                        dataKey="value"
-                        stroke="#3B82F6"
-                        strokeWidth={2.5}
-                        dot={false}
-                        activeDot={{ r: 5, fill: '#3B82F6', stroke: '#0A0E14', strokeWidth: 3 }}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <EmptyState
-                  title="No momentum history"
-                  message="Live scraper history will appear here after trend records include two or more dated readings."
-                />
-              )}
-            </GlassCard>
-          </div>
-
-          <div className="xl:col-span-2">
-            <h2 className="mb-5 text-lg font-bold text-white">Command Actions</h2>
-            <div className="grid grid-cols-1 gap-4">
-              {quickActions.map((action) => (
-                <Link key={action.title} to={action.link} className="block h-full no-underline hover:no-underline">
-                  <GlassCard gradient className="group h-full min-h-[164px] !p-0 transition-all hover:glow-purple">
-                    <div className="relative z-10 flex h-full min-h-[164px] flex-col p-5">
-                      <div className="flex items-start gap-3">
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-gradient-to-br from-blue-500/20 to-purple-500/20 transition-transform group-hover:scale-105">
-                          {createElement(action.icon, { size: 18, className: 'text-blue-400' })}
-                        </div>
-                        <div className="min-w-0">
-                          <h3 className="text-sm font-bold leading-snug text-white">{action.title}</h3>
-                          <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-gray-500 group-hover:text-gray-400">{action.desc}</p>
-                        </div>
-                      </div>
-                      <div className="mt-auto flex items-center gap-1 pt-4 text-[11px] font-medium text-blue-400/70 transition-colors group-hover:text-blue-300">
-                        Open <ArrowUpRight size={12} />
-                      </div>
-                    </div>
-                  </GlassCard>
-                </Link>
-              ))}
-            </div>
-          </div>
+        <motion.div variants={DASHBOARD_MOTION.item} className="dashboard-decision-grid">
+          <OpportunityBrief
+            bestTrend={bestTrend}
+            opportunities={opportunities}
+            mediaTrend={topMediaTrend}
+          />
+          <MarketDirection stats={stats} history={history} fastestTrend={fastestTrend} />
+          <NextActionBar bestTrend={bestTrend} platformLabel={platformLabel} />
         </motion.div>
       </motion.div>
     </PageWrapper>

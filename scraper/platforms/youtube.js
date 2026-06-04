@@ -22,6 +22,13 @@ export async function scrapeYouTubeTrending() {
     const title = cleanVideoTitle(card.find('.vc-title').first().text());
     if (!isUsefulTopic(title)) return;
 
+    const link = card.find('a.video-link').first();
+    const sourceUrl = absoluteUrl(link.attr('href'), YOUTUBE_TRENDS_URL);
+    const videoId = link.attr('data-id') || extractYouTubeId(sourceUrl);
+    const thumbnailUrl = absoluteUrl(
+      card.find('img.thumbnail').first().attr('src'),
+      YOUTUBE_TRENDS_URL,
+    ) || (videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : null);
     const stats = card.find('.stat-line span').map((_, stat) => cleanWhitespace($(stat).text())).get();
     const metadata = parseVideoMetadata(card.find('script').html() || '');
 
@@ -31,6 +38,11 @@ export async function scrapeYouTubeTrending() {
       volume: parseCompactNumber(stats[0]),
       comments: parseCompactNumber(stats[2]),
       source: 'trends24-youtube',
+      sourceUrl,
+      videoId,
+      embedUrl: videoId ? `https://www.youtube.com/embed/${videoId}` : null,
+      thumbnailUrl,
+      mediaType: 'video',
       scrapedAt,
       rank: index + 1,
       publishedAt: metadata?.publishedAt || scrapedAt,
@@ -59,4 +71,28 @@ function cleanVideoTitle(value) {
     .replace(/(?:\s*#\w[\w-]*)+$/g, '')
     .replace(/[?"'#\s]+$/g, '')
     .trim();
+}
+
+function absoluteUrl(value, baseUrl) {
+  if (!value) return null;
+
+  try {
+    return new URL(value, baseUrl).href;
+  } catch {
+    return null;
+  }
+}
+
+function extractYouTubeId(urlValue) {
+  if (!urlValue) return null;
+
+  try {
+    const url = new URL(urlValue);
+    if (url.hostname.includes('youtu.be')) {
+      return url.pathname.replace(/^\/+/, '').split('/')[0] || null;
+    }
+    return url.searchParams.get('v');
+  } catch {
+    return null;
+  }
 }

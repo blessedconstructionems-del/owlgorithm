@@ -113,6 +113,15 @@ export async function runScrape(platforms = 'all') {
 
   console.log(`\n--- Normalizing ${allRawTrends.length} raw trends ---`);
 
+  if (allRawTrends.length === 0) {
+    if (existingCache.length > 0) {
+      console.warn(`[Cache] No source data returned; keeping ${existingCache.length} cached trends`);
+    } else {
+      console.warn('[Cache] No source data returned and no cache exists');
+    }
+    return existingCache;
+  }
+
   // Normalize all raw data into unified schema
   const normalized = normalizeTrends(allRawTrends, existingCache);
 

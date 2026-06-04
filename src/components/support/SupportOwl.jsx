@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Loader2, MessageCircle, Send, X } from 'lucide-react';
+import { Bot, Loader2, MessageCircle, Send, Sparkles, Wifi, WifiOff, X } from 'lucide-react';
 
 import { useApp } from '@/context/AppContext';
 import { apiRequest } from '@/lib/api';
@@ -7,8 +7,23 @@ import { cn } from '@/lib/utils';
 
 const INITIAL_MESSAGE = {
   role: 'assistant',
-  text: 'Ask me about signing in, connecting socials, Creator Studio, trends, or posting.',
+  text: 'I can help with account access, social connections, Creator Studio, trend decisions, and publishing failures.',
 };
+
+const QUICK_PROMPTS = [
+  {
+    label: 'Connect Instagram',
+    text: 'Walk me through connecting Instagram with Upload-Post and tell me what could block it.',
+  },
+  {
+    label: 'Post a trend',
+    text: 'Help me turn the strongest current trend into a safe post plan.',
+  },
+  {
+    label: 'Fix signup',
+    text: 'Help me debug signup or sign-in issues for a new user.',
+  },
+];
 
 function supportPayload(messages) {
   return messages.map((message) => ({
@@ -40,7 +55,7 @@ export default function SupportOwl() {
   }, [messages, open]);
 
   async function handleSubmit(event) {
-    event.preventDefault();
+    event?.preventDefault();
 
     const text = draft.trim();
     if (!text || busy) return;
@@ -68,75 +83,116 @@ export default function SupportOwl() {
     }
   }
 
+  function handleDraftKeyDown(event) {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      handleSubmit(event);
+    }
+  }
+
+  function applyPrompt(prompt) {
+    setDraft(prompt);
+    setOpen(true);
+  }
+
   const online = readiness?.configured === true;
+  const statusLabel = online ? 'Online' : 'Needs Grok env';
+  const authLabel = authStatus === 'anonymous' ? 'Signed out' : 'Workspace ready';
 
   return (
     <>
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="fixed bottom-20 right-4 z-[70] inline-flex h-12 w-12 items-center justify-center rounded-full border border-white/12 bg-cyan-400 text-[#061018] shadow-xl shadow-black/35 transition-transform hover:scale-[1.03] focus:outline-none focus:ring-2 focus:ring-cyan-300 md:bottom-5 md:right-5"
+        className={cn('support-owl-launcher', open && 'support-owl-launcher-open')}
         aria-label={open ? 'Close support chat' : 'Open support chat'}
         title={open ? 'Close support chat' : 'Open support chat'}
       >
-        {open ? <X size={22} /> : <MessageCircle size={22} />}
+        <span className="support-owl-launcher-icon">
+          {open ? <X size={18} /> : <MessageCircle size={18} />}
+        </span>
+        <span className="support-owl-launcher-copy">
+          <strong>Support Owl</strong>
+          <small>{statusLabel}</small>
+        </span>
       </button>
 
       {open ? (
-        <section className="fixed inset-x-3 bottom-36 z-[70] mx-auto flex max-h-[68vh] max-w-md flex-col overflow-hidden rounded-lg border border-white/12 bg-[#0b1018]/95 shadow-2xl shadow-black/55 backdrop-blur-xl md:inset-x-auto md:bottom-20 md:right-5 md:w-[390px]">
-          <header className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
-            <div>
-              <p className="text-sm font-semibold text-white">Support Owl</p>
-              <p className="mt-0.5 text-xs text-gray-500">
-                {online ? 'Online' : 'Waiting on Grok env'}
-                {authStatus === 'anonymous' ? ' - signed out' : ''}
-              </p>
+        <section className="support-owl-panel" aria-label="Support Owl chat">
+          <header className="support-owl-header">
+            <div className="support-owl-identity">
+              <span className="support-owl-mark">
+                <Bot size={18} />
+              </span>
+              <div>
+                <p>Support Owl</p>
+                <span>{authLabel}</span>
+              </div>
             </div>
-            <span
+            <div
               className={cn(
-                'h-2.5 w-2.5 rounded-full',
-                online ? 'bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.8)]' : 'bg-amber-400',
+                'support-owl-status',
+                online ? 'support-owl-status-online' : 'support-owl-status-waiting',
               )}
-              aria-hidden="true"
-            />
+            >
+              {online ? <Wifi size={14} /> : <WifiOff size={14} />}
+              <span>{statusLabel}</span>
+            </div>
           </header>
 
-          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
+          <div className="support-owl-context">
+            <Sparkles size={15} />
+            <p>
+              Ask for exact product steps. I use the live backend when configured and I will say when a provider is missing.
+            </p>
+          </div>
+
+          <div className="support-owl-prompts">
+            {QUICK_PROMPTS.map((prompt) => (
+              <button
+                key={prompt.label}
+                type="button"
+                onClick={() => applyPrompt(prompt.text)}
+              >
+                {prompt.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="support-owl-thread">
             {messages.map((message, index) => (
               <div
                 key={`${message.role}-${index}`}
                 className={cn(
-                  'max-w-[88%] rounded-lg px-3 py-2 text-sm leading-relaxed',
-                  message.role === 'assistant'
-                    ? 'border border-white/10 bg-white/[0.04] text-gray-200'
-                    : 'ml-auto bg-cyan-400 text-[#061018]',
+                  'support-owl-message',
+                  message.role === 'assistant' ? 'support-owl-message-assistant' : 'support-owl-message-user',
                 )}
               >
                 {message.text}
               </div>
             ))}
             {busy ? (
-              <div className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-300">
-                <Loader2 size={14} className="animate-spin" />
-                Thinking
+              <div className="support-owl-thinking">
+                <Loader2 size={14} />
+                Reading the backend state
               </div>
             ) : null}
             <div ref={endRef} />
           </div>
 
-          {error ? <p className="border-t border-white/10 px-4 pt-3 text-xs leading-relaxed text-amber-200">{error}</p> : null}
+          {error ? <p className="support-owl-error">{error}</p> : null}
 
-          <form onSubmit={handleSubmit} className="flex gap-2 border-t border-white/10 p-3">
-            <input
+          <form onSubmit={handleSubmit} className="support-owl-composer">
+            <textarea
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
-              placeholder="Message support"
-              className="min-w-0 flex-1 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none placeholder:text-gray-600 focus:border-cyan-300/50"
+              onKeyDown={handleDraftKeyDown}
+              placeholder="Ask Support Owl"
+              rows={2}
             />
             <button
               type="submit"
               disabled={!draft.trim() || busy}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-400 text-[#061018] transition-colors hover:bg-cyan-300 disabled:cursor-not-allowed disabled:bg-gray-700 disabled:text-gray-500"
               aria-label="Send support message"
               title="Send"
             >

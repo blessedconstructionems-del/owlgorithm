@@ -45,12 +45,12 @@ function NotificationDropdown({ notifications, onRead, onClose }) {
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -8, scale: 0.95 }}
       transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-      className="fixed left-2 right-2 top-[64px] sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-3 sm:w-[380px] overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0f1219] shadow-2xl shadow-black/60 z-[100]"
+      className="app-dropdown fixed left-2 right-2 top-[64px] z-[100] sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-3 sm:w-[380px]"
     >
-      <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-4">
-        <h3 className="text-sm font-semibold text-white">Notifications</h3>
-        <span className="flex items-center gap-1.5 text-xs text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">
-          <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+      <div className="app-dropdown-header">
+        <h3>Notifications</h3>
+        <span className="app-dropdown-badge">
+          <span />
           {notifications.filter((n) => !n.read).length} new
         </span>
       </div>
@@ -69,13 +69,13 @@ function NotificationDropdown({ notifications, onRead, onClose }) {
               transition={{ delay: i * 0.05 }}
               onClick={() => onRead(notif.id)}
               className={cn(
-                'flex w-full gap-3 px-5 py-4 text-left transition-colors hover:bg-white/[0.03] border-b border-white/[0.03] last:border-0',
-                !notif.read && 'bg-blue-500/[0.03]'
+                'app-dropdown-row',
+                !notif.read && 'app-dropdown-row-unread'
               )}
             >
               <div className={cn(
-                'mt-1.5 h-2 w-2 shrink-0 rounded-full transition-colors',
-                notif.read ? 'bg-transparent' : 'bg-blue-500'
+                'app-dropdown-dot',
+                notif.read ? 'bg-transparent' : 'bg-[var(--app-accent)]'
               )} />
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-gray-200">{notif.title}</p>
@@ -115,12 +115,15 @@ function UserDropdown({ user, isGuest, onClose, onLogout }) {
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -8, scale: 0.95 }}
       transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-      className="absolute right-0 top-full mt-3 w-56 overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0f1219] shadow-2xl shadow-black/60"
+      className="app-dropdown absolute right-0 top-full mt-3 w-64"
     >
-      <div className="border-b border-white/[0.06] px-5 py-4">
-        <p className="text-sm font-semibold text-white">{user?.name || 'Guest'}</p>
-        <p className="text-xs text-gray-500 mt-0.5">{isGuest ? 'Guest mode' : user?.email}</p>
-        <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-blue-500/15 to-purple-500/15 border border-blue-500/20 px-2.5 py-1 text-[10px] font-semibold text-blue-400">
+      <div className="app-profile-panel">
+        <div className="app-profile-mark" aria-hidden="true">{user?.avatar || (isGuest ? 'G' : 'O')}</div>
+        <div className="min-w-0">
+          <p>{user?.name || 'Guest'}</p>
+          <span>{isGuest ? 'Guest mode' : user?.email}</span>
+        </div>
+        <div className="app-profile-plan">
           <Sparkles size={10} />
           {user?.plan || (isGuest ? 'Guest' : 'Founding')}
         </div>
@@ -130,8 +133,8 @@ function UserDropdown({ user, isGuest, onClose, onLogout }) {
           const Icon = item.icon;
           const inner = (
             <div className={cn(
-              'flex w-full items-center gap-3 px-5 py-2.5 text-sm transition-colors hover:bg-white/[0.04]',
-              item.danger ? 'text-red-400 hover:text-red-300' : 'text-gray-400 hover:text-gray-200'
+              'app-profile-menu-item',
+              item.danger && 'app-profile-menu-danger'
             )}>
               <Icon size={15} />
               {item.label}
@@ -165,9 +168,9 @@ export default function TopBar() {
   }
 
   return (
-    <header className="sticky top-0 z-30 flex h-[60px] sm:h-[72px] shrink-0 items-center gap-3 sm:gap-4 border-b border-white/[0.08] bg-[#060910]/70 px-3 backdrop-blur-xl sm:px-8">
+    <header className="app-topbar">
       {/* Page title */}
-      <h1 className="shrink-0 text-base sm:text-lg font-bold text-white tracking-tight truncate">
+      <h1 className="app-topbar-title">
         {pageTitle}
       </h1>
 
@@ -179,7 +182,8 @@ export default function TopBar() {
         <div className="relative">
           <button
             onClick={() => { setNotifOpen(!notifOpen); setUserOpen(false); }}
-            className="relative flex h-10 w-10 items-center justify-center rounded-xl text-gray-500 transition-all hover:bg-white/[0.05] hover:text-gray-300"
+            className="app-icon-button"
+            aria-label="Open notifications"
           >
             <Bell size={18} />
             {unreadCount > 0 && (
@@ -203,9 +207,11 @@ export default function TopBar() {
         <div className="relative">
           <button
             onClick={() => { setUserOpen(!userOpen); setNotifOpen(false); }}
-            className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 text-sm font-bold text-white transition-all hover:shadow-lg hover:shadow-blue-500/20 hover:scale-105"
+            className="app-user-button"
+            aria-label="Open profile menu"
           >
-            {user?.avatar || (isGuest ? 'G' : 'O')}
+            <span>{user?.avatar || (isGuest ? 'G' : 'O')}</span>
+            <strong>{user?.name?.split(' ')[0] || (isGuest ? 'Guest' : 'User')}</strong>
           </button>
           <AnimatePresence>
             {userOpen && (

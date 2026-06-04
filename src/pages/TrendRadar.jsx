@@ -26,6 +26,7 @@ import CircularProgress from '@/components/shared/CircularProgress';
 
 import { useTrendsData } from '@/data/trends';
 import TrendDNA from '@/components/trends/TrendDNA';
+import TrendMediaPreview from '@/components/trends/TrendMediaPreview';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -226,6 +227,8 @@ function TrendDetailModal({ trend, allTrends, onClose }) {
           </div>
           <p className="text-sm text-gray-400">{trend.description}</p>
         </div>
+
+        <TrendMediaPreview trend={trend} eyebrow="Trend Source Media" />
 
         {/* 30-day momentum chart */}
         <GlassCard accent="purple" className="p-4">

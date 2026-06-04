@@ -18,7 +18,7 @@ export default function AppLayout() {
   const videoSrc = isVideo ? `${import.meta.env.BASE_URL}${environment.replace(/^\/+/, '')}` : null;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#060910] text-gray-200">
+    <div className="owl-app-shell flex h-screen overflow-hidden bg-[#060910] text-gray-200">
       {isVideo ? (
         <video
           key={environment}

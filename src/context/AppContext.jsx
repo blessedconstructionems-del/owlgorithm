@@ -13,6 +13,9 @@ import {
 
 const AppContext = createContext(null);
 const DEFAULT_ENVIRONMENT = '/snowy-owl.mp4';
+const AUTH_PREVIEW = STATIC_PREVIEW || ['1', 'true', 'yes'].includes(
+  `${import.meta.env.VITE_AUTH_PREVIEW || ''}`.toLowerCase(),
+);
 
 const DEFAULT_PREFERENCES = {
   environment: DEFAULT_ENVIRONMENT,
@@ -91,7 +94,7 @@ export function AppProvider({ children }) {
   }, []);
 
   const refreshSession = useCallback(async () => {
-    if (STATIC_PREVIEW) {
+    if (AUTH_PREVIEW) {
       const preview = buildPreviewState();
       setAuthStatus(preview.authStatus);
       setUser(preview.user);
@@ -252,7 +255,7 @@ export function AppProvider({ children }) {
   }, []);
 
   const logout = useCallback(async () => {
-    if (STATIC_PREVIEW) {
+    if (AUTH_PREVIEW) {
       const preview = buildPreviewState();
       setAuthStatus(preview.authStatus);
       setUser(preview.user);
@@ -275,7 +278,7 @@ export function AppProvider({ children }) {
   }, [applySession, authStatus]);
 
   const updateProfile = useCallback(async ({ name, email }) => {
-    if (STATIC_PREVIEW) {
+    if (AUTH_PREVIEW) {
       const nextUser = normalizeUser({ ...user, name, email, isGuest: true });
       setUser(nextUser);
       return {
@@ -303,7 +306,7 @@ export function AppProvider({ children }) {
 
     setPreferences(next);
 
-    if (STATIC_PREVIEW) {
+    if (AUTH_PREVIEW) {
       return {
         authenticated: true,
         user,
@@ -325,7 +328,7 @@ export function AppProvider({ children }) {
   }, [applySession, preferences, user]);
 
   const changePassword = useCallback(async ({ currentPassword, newPassword }) => {
-    if (STATIC_PREVIEW) {
+    if (AUTH_PREVIEW) {
       throw new Error('Password changes need the live Owlgorithm backend.');
     }
 
@@ -336,7 +339,7 @@ export function AppProvider({ children }) {
   }, []);
 
   const deleteAccount = useCallback(async ({ password }) => {
-    if (STATIC_PREVIEW) {
+    if (AUTH_PREVIEW) {
       throw new Error('Account deletion needs the live Owlgorithm backend.');
     }
 

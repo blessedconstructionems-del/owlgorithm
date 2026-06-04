@@ -46,6 +46,8 @@ export function normalizeTrends(rawTrends, existingCache = []) {
 
     // Build diffusion chain
     const diffusion = buildDiffusion(items);
+    const sources = buildSources(items, platformMetrics);
+    const media = selectPrimaryMediaSource(sources);
 
     // Determine type
     const type = detectType(group.name);
@@ -81,6 +83,8 @@ export function normalizeTrends(rawTrends, existingCache = []) {
       },
       firstSeen,
       diffusion,
+      sources,
+      media,
       _raw: items.length, // Debug: number of raw items merged
     };
   });
@@ -230,6 +234,73 @@ function buildDiffusion(items) {
       platform,
       timestamp: new Date(timestamp).toISOString(),
     }));
+}
+
+function buildSources(items, platformMetrics) {
+  return items
+    .map((item) => {
+      const platform = mapPlatformName(item.platform);
+      const metrics = platformMetrics[platform] || {};
+
+      return pruneEmpty({
+        platform,
+        source: item.source,
+        title: item.name,
+        sourceUrl: item.sourceUrl || item.url,
+        videoUrl: item.videoUrl,
+        embedUrl: item.embedUrl,
+        thumbnailUrl: item.thumbnailUrl,
+        imageUrl: item.imageUrl,
+        mediaType: item.mediaType,
+        videoId: item.videoId,
+        rank: item.rank,
+        publisher: item.publisher || item.channel || item.subreddit,
+        publishedAt: item.publishedAt,
+        scrapedAt: item.scrapedAt,
+        views: metrics.views || item.volume || 0,
+        engagement: metrics.engagement || (item.volume || 0) + (item.comments || 0),
+      });
+    })
+    .filter((item) => item.sourceUrl || item.videoUrl || item.embedUrl || item.thumbnailUrl || item.imageUrl);
+}
+
+function selectPrimaryMediaSource(sources) {
+  if (!sources.length) return null;
+
+  const [best] = [...sources].sort((a, b) => scoreMediaSource(b) - scoreMediaSource(a));
+  return pruneEmpty({
+    platform: best.platform,
+    source: best.source,
+    sourceUrl: best.sourceUrl,
+    videoUrl: best.videoUrl,
+    embedUrl: best.embedUrl,
+    thumbnailUrl: best.thumbnailUrl,
+    imageUrl: best.imageUrl || best.thumbnailUrl,
+    mediaType: best.mediaType,
+    title: best.title,
+    publisher: best.publisher,
+    rank: best.rank,
+    views: best.views,
+    engagement: best.engagement,
+    publishedAt: best.publishedAt,
+  });
+}
+
+function scoreMediaSource(source) {
+  const platform = mapPlatformName(source.platform || '').toLowerCase();
+  const platformPriority = platform === 'tiktok' ? 80 : platform === 'youtube' ? 60 : platform === 'instagram' ? 50 : 20;
+  const playableScore = source.videoUrl || source.embedUrl ? 120 : 0;
+  const imageScore = source.imageUrl || source.thumbnailUrl ? 60 : 0;
+  const sourceScore = source.sourceUrl ? 20 : 0;
+  const viewScore = Math.min(40, Math.log10(Math.max(1, source.views || source.engagement || 0)) * 8);
+  const rankScore = source.rank ? Math.max(0, 20 - source.rank) : 0;
+  return platformPriority + playableScore + imageScore + sourceScore + viewScore + rankScore;
+}
+
+function pruneEmpty(payload) {
+  return Object.fromEntries(
+    Object.entries(payload).filter(([, value]) => value !== undefined && value !== null && value !== ''),
+  );
 }
 
 function detectType(name) {
