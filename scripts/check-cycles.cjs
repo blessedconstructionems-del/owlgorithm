@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 
 const root = process.cwd();
-const scanDirs = ['src', 'server', 'scraper', 'config'];
+const scanDirs = ['src', 'server', 'scraper', 'config', 'shared'];
 const extensions = ['.js', '.jsx'];
 
 function walk(relativeDir) {

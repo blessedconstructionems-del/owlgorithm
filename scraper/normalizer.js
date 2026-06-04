@@ -3,6 +3,7 @@
 
 import crypto from 'crypto';
 import { fuzzyMatch } from './fuzzy-matcher.js';
+import { ensureTrendClassification } from '../shared/creatorTaxonomy.js';
 
 export function normalizeTrends(rawTrends, existingCache = []) {
   const cleanedTrends = rawTrends.filter((trend) => isTrendCandidate(trend.name));
@@ -59,7 +60,7 @@ export function normalizeTrends(rawTrends, existingCache = []) {
     const opportunityScore = calculateOpportunity(momentum, growthVelocity, competition, saturation);
     const audienceInterest = Math.min(100, Math.round(momentum * 0.6 + (platforms.length * 8) + Math.max(0, growthVelocity * 0.3)));
 
-    return {
+    const trend = {
       id,
       name: group.name,
       type,
@@ -87,6 +88,8 @@ export function normalizeTrends(rawTrends, existingCache = []) {
       media,
       _raw: items.length, // Debug: number of raw items merged
     };
+
+    return ensureTrendClassification(trend);
   });
 
   // Fill relatedTrends based on category and keyword overlap

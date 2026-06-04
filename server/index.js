@@ -52,6 +52,7 @@ import {
   getSupportReadiness,
 } from './support.js';
 import { verifyFirebaseIdToken } from './firebase.js';
+import { CLASSIFIER_VERSION, ensureTrendClassification } from '../shared/creatorTaxonomy.js';
 
 const CACHE_DIR = getScraperCacheDir();
 const TRENDS_FILE = path.join(CACHE_DIR, 'trends.json');
@@ -100,8 +101,34 @@ function safeReadJson(filePath, fallback) {
   }
 }
 
+function writeJsonAtomic(filePath, payload) {
+  const tempPath = `${filePath}.tmp`;
+  fs.writeFileSync(tempPath, JSON.stringify(payload, null, 2));
+  fs.renameSync(tempPath, filePath);
+}
+
 function loadTrends() {
-  return safeReadJson(TRENDS_FILE, []);
+  const trends = safeReadJson(TRENDS_FILE, []);
+  if (!Array.isArray(trends)) return [];
+
+  let changed = false;
+  const classified = trends.map((trend) => {
+    if (trend?.creatorFit?.version === CLASSIFIER_VERSION && trend.creatorNiche && trend.creatorNicheLabel) {
+      return trend;
+    }
+    changed = true;
+    return ensureTrendClassification(trend);
+  });
+
+  if (changed) {
+    try {
+      writeJsonAtomic(TRENDS_FILE, classified);
+    } catch (err) {
+      console.error('[Server] Failed to backfill trend classifications:', err.message);
+    }
+  }
+
+  return classified;
 }
 
 function loadStatus() {

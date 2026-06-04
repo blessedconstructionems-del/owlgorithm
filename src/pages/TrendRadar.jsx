@@ -204,6 +204,9 @@ function TrendDetailModal({ trend, allTrends, onClose }) {
   const relatedTrends = allTrends.filter((t) =>
     trend.relatedTrends?.includes(t.id),
   );
+  const creatorFitLabel = trend.creatorNicheLabel
+    ? `${trend.creatorNicheLabel}${trend.creatorNicheConfidence ? ` ${trend.creatorNicheConfidence}%` : ''}`
+    : null;
 
   return (
     <motion.div
@@ -237,6 +240,11 @@ function TrendDetailModal({ trend, allTrends, onClose }) {
             <StatusBadge status={trend.type.toLowerCase() === 'topic' ? 'rising' : trend.type.toLowerCase() === 'audio' ? 'emerging' : trend.type.toLowerCase() === 'format' ? 'active' : trend.type.toLowerCase() === 'hashtag' ? 'peak' : 'draft'} />
           </div>
           <p className="text-sm text-gray-400">{trend.description}</p>
+          {creatorFitLabel ? (
+            <div className="mt-3 inline-flex items-center rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-xs font-semibold text-cyan-200">
+              Creator fit: {creatorFitLabel}
+            </div>
+          ) : null}
         </div>
 
         <TrendMediaPreview trend={trend} eyebrow="Trend Source Media" />
@@ -635,8 +643,16 @@ export default function TrendRadar() {
                         />
                       </div>
 
-                      {/* Type label */}
-                      <span className="text-xs text-gray-500">{trend.type}</span>
+                      {/* Type + creator fit */}
+                      <div className="flex flex-wrap gap-2">
+                        <span className="text-xs text-gray-500">{trend.type}</span>
+                        {trend.creatorNicheLabel ? (
+                          <span className="rounded-full border border-cyan-300/15 bg-cyan-300/10 px-2 py-0.5 text-[11px] font-semibold text-cyan-200">
+                            {trend.creatorNicheLabel}
+                            {trend.creatorNicheConfidence ? ` ${trend.creatorNicheConfidence}%` : ''}
+                          </span>
+                        ) : null}
+                      </div>
 
                       {/* Momentum + Saturation */}
                       <div className="flex items-center gap-4">

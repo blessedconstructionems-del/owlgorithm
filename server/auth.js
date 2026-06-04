@@ -24,6 +24,12 @@ import {
   updateUserProfile,
   DEFAULT_ENVIRONMENT,
 } from './db.js';
+import {
+  CREATOR_GOALS as CREATOR_GOAL_OPTIONS,
+  CREATOR_NICHES as CREATOR_NICHE_OPTIONS,
+  CREATOR_PLATFORM_OPTIONS,
+  DEFAULT_CREATOR_PROFILE,
+} from '../shared/creatorTaxonomy.js';
 
 export const SESSION_COOKIE_NAME = 'owlgorithm_session';
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 30;
@@ -45,38 +51,9 @@ const ENVIRONMENT_OPTIONS = new Set([
   'gradient:midnight',
   'gradient:ember',
 ]);
-const CREATOR_NICHES = new Set([
-  'news',
-  'beauty',
-  'business',
-  'fitness',
-  'food',
-  'gaming',
-  'parenting',
-  'education',
-  'tech',
-  'entertainment',
-  'local_service',
-  'exploring',
-]);
-const CREATOR_GOALS = new Set([
-  'grow_audience',
-  'post_consistently',
-  'sell_offer',
-  'build_authority',
-  'find_channel',
-]);
-const CREATOR_PLATFORMS = new Set([
-  'tiktok',
-  'instagram',
-  'youtube',
-  'x',
-  'linkedin',
-  'facebook',
-  'pinterest',
-  'reddit',
-  'google_business',
-]);
+const CREATOR_NICHES = new Set(CREATOR_NICHE_OPTIONS.map((option) => option.id));
+const CREATOR_GOALS = new Set(CREATOR_GOAL_OPTIONS.map((option) => option.id));
+const CREATOR_PLATFORMS = new Set(CREATOR_PLATFORM_OPTIONS.map((option) => option.id));
 
 const rateLimitState = new Map();
 
@@ -208,11 +185,12 @@ function normalizeCreatorProfile(input = {}) {
   const hasLane = Boolean(niche || cleanProfileText(input?.customNiche));
 
   return {
+    ...DEFAULT_CREATOR_PROFILE,
     completed: Boolean(input?.completed && hasLane && preferredPlatforms.length),
-    creatorType: cleanProfileText(input?.creatorType || 'creator', 40) || 'creator',
+    creatorType: cleanProfileText(input?.creatorType || DEFAULT_CREATOR_PROFILE.creatorType, 40) || DEFAULT_CREATOR_PROFILE.creatorType,
     niche,
     customNiche: cleanProfileText(input?.customNiche, 64),
-    goal: CREATOR_GOALS.has(input?.goal) ? input.goal : 'grow_audience',
+    goal: CREATOR_GOALS.has(input?.goal) ? input.goal : DEFAULT_CREATOR_PROFILE.goal,
     preferredPlatforms,
     channelName: cleanProfileText(input?.channelName, 70),
     createdAt: input?.createdAt || null,

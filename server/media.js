@@ -179,12 +179,15 @@ export function buildMediaPlan(request, trend = null) {
   const trendPhase = text(trend?.saturation);
   const trendPlatforms = Array.isArray(trend?.platforms) ? trend.platforms.join(', ') : '';
   const description = text(trend?.description);
+  const creatorFit = text(trend?.creatorNicheLabel);
+  const creatorConfidence = Number(trend?.creatorNicheConfidence) || 0;
   const context = [
     trend ? `Live trend: ${trendName}.` : `Concept: ${trendName}.`,
     trendPhase ? `Trend phase: ${trendPhase}.` : '',
     trendPlatforms ? `Detected on: ${trendPlatforms}.` : '',
     description ? `Source context: ${description}.` : '',
     request.creatorNiche ? `Creator niche: ${request.creatorNiche}.` : '',
+    creatorFit ? `Trend creator fit: ${creatorFit}${creatorConfidence ? ` at ${creatorConfidence}% confidence` : ''}.` : '',
     request.creatorGoal ? `Creator goal: ${request.creatorGoal.replace(/_/g, ' ')}.` : '',
     request.truthNote ? `Truth guardrail: ${request.truthNote}.` : 'Truth guardrail: avoid unsupported claims and present this as a practical observation.',
   ].filter(Boolean).join(' ');
