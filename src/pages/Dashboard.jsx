@@ -43,7 +43,6 @@ import {
   getFreshnessState,
   getTopOpportunities,
 } from '@/lib/trendMetrics';
-import { getTopMediaTrend } from '@/lib/trendMedia';
 
 const DASHBOARD_MOTION = {
   container: { animate: { transition: { staggerChildren: 0.07 } } },
@@ -334,7 +333,7 @@ function RailRow({ icon: Icon, label, value, detail, tone }) {
   );
 }
 
-function OpportunityBrief({ bestTrend, opportunities, mediaTrend }) {
+function OpportunityBrief({ bestTrend, opportunities }) {
   if (!bestTrend) {
     return (
       <DashboardSurface className="dashboard-opportunity-brief">
@@ -395,8 +394,8 @@ function OpportunityBrief({ bestTrend, opportunities, mediaTrend }) {
       </div>
 
       <TrendMediaPreview
-        trend={mediaTrend || bestTrend}
-        eyebrow="Highest-View Media"
+        trend={bestTrend}
+        eyebrow="Source Media"
         compact
         className="dashboard-media-slot"
       />
@@ -587,7 +586,6 @@ export default function Dashboard() {
     [trendFeed],
   );
   const fastestTrends = useMemo(() => getFastestGrowing(trendFeed, 1), [trendFeed]);
-  const topMediaTrend = useMemo(() => getTopMediaTrend(trendFeed), [trendFeed]);
   const history = useMemo(
     () => aggregateTrendHistory(trendFeed, DASHBOARD_LIMITS.chartPoints),
     [trendFeed],
@@ -687,11 +685,7 @@ export default function Dashboard() {
         </motion.div>
 
         <motion.div variants={DASHBOARD_MOTION.item} className="dashboard-decision-grid">
-          <OpportunityBrief
-            bestTrend={bestTrend}
-            opportunities={opportunities}
-            mediaTrend={topMediaTrend}
-          />
+          <OpportunityBrief bestTrend={bestTrend} opportunities={opportunities} />
           <MarketDirection stats={stats} history={history} fastestTrend={fastestTrend} />
           <NextActionBar bestTrend={bestTrend} platformLabel={platformLabel} />
         </motion.div>

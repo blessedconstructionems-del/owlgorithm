@@ -139,17 +139,6 @@ export function getTrendMedia(trend) {
   return candidates.sort((a, b) => mediaScore(b) - mediaScore(a))[0] || null;
 }
 
-export function getTopMediaTrend(trends) {
-  return [...(trends || [])]
-    .map((trend) => ({ trend, media: getTrendMedia(trend) }))
-    .sort((a, b) => {
-      const aPlatform = VIDEO_PLATFORM_PRIORITY[a.media?.platformKey] || 0;
-      const bPlatform = VIDEO_PLATFORM_PRIORITY[b.media?.platformKey] || 0;
-      if (bPlatform !== aPlatform) return bPlatform - aPlatform;
-      return mediaScore(b.media) - mediaScore(a.media);
-    })[0]?.trend || null;
-}
-
 export function hasPlayableTrendVideo(trend) {
   return getTrendMedia(trend)?.kind === 'video';
 }

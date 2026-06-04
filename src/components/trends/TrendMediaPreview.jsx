@@ -70,6 +70,8 @@ export default function TrendMediaPreview({
   const media = getTrendMedia(trend);
   if (!media) return null;
 
+  const displayTitle = trend?.name || media.title;
+
   return (
     <article className={cn('trend-media-preview', compact && 'trend-media-preview-compact', className)}>
       <div className="trend-media-frame">
@@ -86,7 +88,7 @@ export default function TrendMediaPreview({
 
         {media.kind === 'video' && !media.videoUrl && media.embedUrl ? (
           <iframe
-            title={`${media.title} source video`}
+            title={`${displayTitle} source video`}
             src={media.embedUrl}
             className="trend-media-asset"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -97,18 +99,18 @@ export default function TrendMediaPreview({
         {media.kind !== 'video' && media.imageUrl ? (
           <img
             src={media.imageUrl}
-            alt={media.title}
+            alt={displayTitle}
             loading="lazy"
             className="trend-media-asset"
           />
         ) : null}
 
         {media.kind === 'headline' && !media.imageUrl ? (
-          <div className="trend-media-headline-card" aria-label={`${media.title} headline card`}>
+          <div className="trend-media-headline-card" aria-label={`${displayTitle} headline card`}>
             <div className="trend-media-headline-orbit" aria-hidden="true" />
             <div>
               <span>{media.platform}</span>
-              <strong>{media.title}</strong>
+              <strong>{displayTitle}</strong>
             </div>
           </div>
         ) : null}
@@ -126,7 +128,7 @@ export default function TrendMediaPreview({
       <div className="trend-media-copy">
         <div>
           <p className="trend-media-eyebrow">{eyebrow}</p>
-          <h3>{media.title}</h3>
+          <h3>{displayTitle}</h3>
         </div>
         <MediaMeta media={media} />
         {media.description && !compact ? <p>{media.description}</p> : null}
