@@ -84,6 +84,15 @@ const DEFAULT_FORM = {
   resolution: '480p',
 };
 
+function mediaPayload(source) {
+  return {
+    ...source,
+    trendId: source.trendId || undefined,
+    customConcept: source.trendId ? '' : source.customConcept,
+    duration: Number(source.duration),
+  };
+}
+
 function fallbackCopy(text) {
   const textarea = document.createElement('textarea');
   textarea.value = text;
@@ -244,6 +253,7 @@ export default function MediaBuilder() {
   const timersRef = useRef([]);
   const streamRef = useRef(null);
   const recordingUrlRef = useRef(null);
+  const autoPlanKeyRef = useRef(null);
 
   const platformOptions = readiness?.platforms?.length ? readiness.platforms : DEFAULT_PLATFORMS;
   const styleOptions = readiness?.styles?.length ? readiness.styles : DEFAULT_STYLES;
@@ -303,8 +313,23 @@ export default function MediaBuilder() {
 
   useEffect(() => {
     const trendId = searchParams.get('trend');
-    if (trendId) {
-      setForm((current) => ({ ...current, trendId, customConcept: '' }));
+    const requestedType = searchParams.get('type');
+    const requestedPlatform = searchParams.get('platform');
+    const sourceImageUrl = searchParams.get('sourceImageUrl');
+    const sourceUrl = searchParams.get('sourceUrl');
+
+    if (trendId || requestedType || requestedPlatform || sourceImageUrl || sourceUrl) {
+      setForm((current) => ({
+        ...current,
+        trendId: trendId || current.trendId,
+        customConcept: trendId ? '' : current.customConcept,
+        type: requestedType === 'image' ? 'image' : requestedType === 'video' ? 'video' : current.type,
+        platform: requestedPlatform || current.platform,
+        sourceImageUrl: sourceImageUrl || current.sourceImageUrl,
+        truthNote: sourceUrl
+          ? `Use the source media as reference context only. Source: ${sourceUrl}`
+          : current.truthNote,
+      }));
     }
   }, [searchParams]);
 
@@ -421,15 +446,6 @@ export default function MediaBuilder() {
     setError(null);
   }
 
-  function buildPayload(source = form) {
-    return {
-      ...source,
-      trendId: source.trendId || undefined,
-      customConcept: source.trendId ? '' : source.customConcept,
-      duration: Number(source.duration),
-    };
-  }
-
   function inferPlatformFromIntent(intent, trend) {
     const lowered = intent.toLowerCase();
     if (lowered.includes('youtube') || lowered.includes('short')) return 'youtube_shorts';
@@ -512,8 +528,9 @@ export default function MediaBuilder() {
     }
   }
 
-  async function requestPlan(nextForm = form) {
-    const ready = Boolean(nextForm.trendId || nextForm.customConcept.trim());
+  const requestPlan = useCallback(async (nextForm) => {
+    const payload = mediaPayload(nextForm);
+    const ready = Boolean(payload.trendId || payload.customConcept.trim());
     if (!ready) {
       setError('Choose a live trend or enter a custom concept.');
       return;
@@ -526,7 +543,7 @@ export default function MediaBuilder() {
     try {
       const data = await apiRequest('/api/media/plan', {
         method: 'POST',
-        json: buildPayload(nextForm),
+        json: payload,
       });
       setPlan(data.plan);
       setResult(null);
@@ -536,7 +553,26 @@ export default function MediaBuilder() {
     } finally {
       setBusy(null);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    const shouldAutoPlan = ['1', 'true', 'yes'].includes(`${searchParams.get('autoplan') || ''}`.toLowerCase());
+    const trendId = searchParams.get('trend');
+    if (!shouldAutoPlan || !trendId || !selectedTrend || busy) return;
+
+    const key = searchParams.toString();
+    if (autoPlanKeyRef.current === key) return;
+
+    autoPlanKeyRef.current = key;
+    setStudioLog((current) => [
+      ...current,
+      {
+        role: 'assistant',
+        text: `Loaded "${selectedTrend.name}" from Trend Radar. Building the caption, hashtags, and video plan now.`,
+      },
+    ]);
+    requestPlan(form);
+  }, [busy, form, requestPlan, searchParams, selectedTrend]);
 
   async function handlePlan() {
     await requestPlan(form);
@@ -584,7 +620,7 @@ export default function MediaBuilder() {
     try {
       const data = await apiRequest('/api/media/generate', {
         method: 'POST',
-        json: buildPayload(),
+        json: mediaPayload(form),
       });
       setPlan(data.plan);
       setResult(data);

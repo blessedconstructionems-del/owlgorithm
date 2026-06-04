@@ -1,4 +1,5 @@
-import { ExternalLink, Image as ImageIcon, Newspaper, Play, Video } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ExternalLink, Image as ImageIcon, Newspaper, Play, Video, WandSparkles } from 'lucide-react';
 
 import PlatformIcon from '@/components/shared/PlatformIcon';
 import { cn } from '@/lib/utils';
@@ -58,6 +59,44 @@ function SourceLink({ media, compact }) {
       Open source
       <ExternalLink size={14} />
     </a>
+  );
+}
+
+function studioPlatformFor(media) {
+  if (media.platformKey === 'youtube') return 'youtube_shorts';
+  if (media.platformKey === 'instagram') return 'instagram_reels';
+  if (media.platformKey === 'twitter') return 'x';
+  if (media.platformKey === 'pinterest') return 'pinterest';
+  if (media.platformKey === 'linkedin') return 'linkedin';
+  return 'tiktok';
+}
+
+function creatorStudioPath(trend, media) {
+  const params = new URLSearchParams({
+    trend: trend.id,
+    type: 'video',
+    platform: studioPlatformFor(media),
+    autoplan: '1',
+  });
+
+  if (media.imageUrl) params.set('sourceImageUrl', media.imageUrl);
+  if (media.sourceUrl) params.set('sourceUrl', media.sourceUrl);
+
+  return `/media?${params.toString()}`;
+}
+
+function CreatorStudioLink({ trend, media, compact }) {
+  if (!trend?.id) return null;
+
+  return (
+    <Link
+      className={cn('trend-media-source-link trend-media-studio-link', compact && 'trend-media-source-link-compact')}
+      to={creatorStudioPath(trend, media)}
+      onClick={(event) => event.stopPropagation()}
+    >
+      {compact ? 'Use for video' : 'Use elements for video'}
+      <WandSparkles size={14} />
+    </Link>
   );
 }
 
@@ -132,7 +171,10 @@ export default function TrendMediaPreview({
         </div>
         <MediaMeta media={media} />
         {media.description && !compact ? <p>{media.description}</p> : null}
-        <SourceLink media={media} compact={compact} />
+        <div className="trend-media-actions">
+          <CreatorStudioLink trend={trend} media={media} compact={compact} />
+          <SourceLink media={media} compact={compact} />
+        </div>
       </div>
     </article>
   );

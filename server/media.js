@@ -42,6 +42,49 @@ function intInRange(value, min, max, fallback) {
   return Math.max(min, Math.min(max, parsed));
 }
 
+function hashtagToken(value) {
+  return text(value)
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '')
+    .toLowerCase();
+}
+
+function buildHashtags(request, trendName, trend = null) {
+  const tags = new Set();
+  const words = text(trendName)
+    .split(/\s+/)
+    .map(hashtagToken)
+    .filter((word) => word.length >= 3 && !/^\d+$/.test(word));
+
+  const compactName = words.slice(0, 3).join('');
+  if (compactName.length >= 4 && compactName.length <= 32) tags.add(`#${compactName}`);
+
+  for (const word of words.slice(0, 3)) {
+    if (word.length <= 24) tags.add(`#${word}`);
+  }
+
+  const category = hashtagToken(trend?.category);
+  if (category && category !== 'general') tags.add(`#${category}`);
+
+  const platformTags = {
+    tiktok: '#tiktokideas',
+    instagram_reels: '#reelsideas',
+    youtube_shorts: '#shortsideas',
+    instagram_feed: '#instagramtips',
+    linkedin: '#marketing',
+    x: '#socialmedia',
+    pinterest: '#pinterestideas',
+  };
+
+  tags.add('#trending');
+  tags.add(platformTags[request.platform] || '#contentideas');
+  tags.add('#contentideas');
+  tags.add('#socialmediatips');
+
+  return [...tags].slice(0, 8);
+}
+
 function envValue(...keys) {
   for (const key of keys) {
     const value = `${process.env[key] || ''}`.trim();
@@ -151,9 +194,7 @@ export function buildMediaPlan(request, trend = null) {
     request.callToAction,
   ].join('\n');
 
-  const hashtags = ['#trending', '#contentideas', '#socialmediatips'];
-  if (request.platform === 'linkedin') hashtags.push('#marketing');
-  if (request.platform === 'pinterest') hashtags.push('#ideas');
+  const hashtags = buildHashtags(request, trendName, trend);
 
   const prompt = [
     `Create a ${request.type === 'video' ? `${request.duration}-second` : 'single'} ${request.aspectRatio} ${request.platformLabel} ${request.type}.`,
