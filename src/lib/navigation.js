@@ -13,6 +13,7 @@ export const APP_NAV_ITEMS = [
   { path: '/platforms', label: 'Connect Socials', availability: 'live' },
   { path: '/media', label: 'Creator Studio Pro', availability: 'live' },
   { path: '/wellness', label: 'Wellness', availability: 'live' },
+  { path: '/onboarding', label: 'Creator Setup', availability: 'live' },
   { path: '/settings', label: 'Settings', availability: 'live' },
 ];
 

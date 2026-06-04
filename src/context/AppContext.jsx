@@ -10,6 +10,11 @@ import {
   sendFirebasePasswordReset,
   sendFirebasePhoneCode,
 } from '@/lib/firebaseAuth';
+import {
+  DEFAULT_CREATOR_PROFILE,
+  isCreatorProfileComplete,
+  normalizeCreatorProfile,
+} from '@/lib/creatorProfile';
 
 const AppContext = createContext(null);
 const DEFAULT_ENVIRONMENT = '/snowy-owl.mp4';
@@ -20,6 +25,7 @@ const AUTH_PREVIEW = STATIC_PREVIEW || ['1', 'true', 'yes'].includes(
 const DEFAULT_PREFERENCES = {
   environment: DEFAULT_ENVIRONMENT,
   sidebarCollapsed: false,
+  creatorProfile: DEFAULT_CREATOR_PROFILE,
 };
 
 const INITIAL_NOTIFICATIONS = [];
@@ -80,9 +86,11 @@ export function AppProvider({ children }) {
     if (payload?.authenticated && payload.user) {
       setAuthStatus(payload.user.isGuest ? 'guest' : 'authenticated');
       setUser(normalizeUser(payload.user));
+      const creatorProfile = normalizeCreatorProfile(payload.preferences?.creatorProfile);
       setPreferences({
         environment: normalizeEnvironment(payload.preferences?.environment),
         sidebarCollapsed: Boolean(payload.preferences?.sidebarCollapsed),
+        creatorProfile,
       });
       return;
     }
@@ -299,9 +307,13 @@ export function AppProvider({ children }) {
   }, [applySession, preferences, user]);
 
   const updatePreferences = useCallback(async (partial) => {
+    const nextCreatorProfile = partial.creatorProfile
+      ? normalizeCreatorProfile(partial.creatorProfile)
+      : preferences.creatorProfile;
     const next = {
       environment: partial.environment ? normalizeEnvironment(partial.environment) : preferences.environment,
       sidebarCollapsed: partial.sidebarCollapsed ?? preferences.sidebarCollapsed,
+      creatorProfile: nextCreatorProfile,
     };
 
     setPreferences(next);
@@ -326,6 +338,20 @@ export function AppProvider({ children }) {
       throw error;
     }
   }, [applySession, preferences, user]);
+
+  const updateCreatorProfile = useCallback(async (profile) => {
+    const now = new Date().toISOString();
+    const current = normalizeCreatorProfile(preferences.creatorProfile);
+    return updatePreferences({
+      creatorProfile: normalizeCreatorProfile({
+        ...current,
+        ...profile,
+        completed: true,
+        createdAt: current.createdAt || now,
+        updatedAt: now,
+      }),
+    });
+  }, [preferences.creatorProfile, updatePreferences]);
 
   const changePassword = useCallback(async ({ currentPassword, newPassword }) => {
     if (AUTH_PREVIEW) {
@@ -377,6 +403,8 @@ export function AppProvider({ children }) {
     authBusy,
     authError,
     user,
+    creatorProfile: normalizeCreatorProfile(preferences.creatorProfile),
+    creatorProfileComplete: isCreatorProfileComplete(preferences.creatorProfile),
     sidebarCollapsed: preferences.sidebarCollapsed,
     environment: preferences.environment,
     notifications,
@@ -395,6 +423,7 @@ export function AppProvider({ children }) {
     resetPassword,
     logout,
     updateProfile,
+    updateCreatorProfile,
     changePassword,
     deleteAccount,
     toggleSidebar,
@@ -415,6 +444,7 @@ export function AppProvider({ children }) {
     requestFirebasePasswordReset,
     requestPasswordReset,
     preferences.environment,
+    preferences.creatorProfile,
     preferences.sidebarCollapsed,
     refreshSession,
     resendVerification,
@@ -424,6 +454,7 @@ export function AppProvider({ children }) {
     signUp,
     toggleSidebar,
     updateProfile,
+    updateCreatorProfile,
     changePassword,
     user,
     verifyEmail,

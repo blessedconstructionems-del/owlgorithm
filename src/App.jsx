@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Navigate, Outlet, Route, Routes } from 'react-router-dom';
+import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import AppLayout from './components/layout/AppLayout';
 import SupportOwl from './components/support/SupportOwl';
 import { useApp } from './context/AppContext';
@@ -12,6 +12,7 @@ const MediaBuilder = lazy(() => import('./pages/MediaBuilder'));
 const SocialConnect = lazy(() => import('./pages/SocialConnect'));
 const FeatureModule = lazy(() => import('./pages/FeatureModule'));
 const Settings = lazy(() => import('./pages/Settings'));
+const Onboarding = lazy(() => import('./pages/Onboarding'));
 const AuthPage = lazy(() => import('./pages/Auth'));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPassword'));
 const VerifyEmailPage = lazy(() => import('./pages/VerifyEmail'));
@@ -52,7 +53,8 @@ function RoutedPage({ component, ...props }) {
 }
 
 function ProtectedLayout() {
-  const { authStatus } = useApp();
+  const { authStatus, creatorProfileComplete } = useApp();
+  const location = useLocation();
 
   if (authStatus === 'loading') {
     return <LoadingScreen />;
@@ -60,6 +62,11 @@ function ProtectedLayout() {
 
   if (authStatus === 'anonymous') {
     return <Navigate replace to="/auth" />;
+  }
+
+  if (!creatorProfileComplete && location.pathname !== '/onboarding') {
+    const next = `${location.pathname}${location.search || ''}`;
+    return <Navigate replace to={`/onboarding?next=${encodeURIComponent(next)}`} />;
   }
 
   return <AppLayout />;
@@ -100,6 +107,7 @@ function App() {
           <Route path="/trends" element={<RoutedPage component={TrendRadar} />} />
           <Route path="/night-watch" element={<RoutedPage component={NightWatch} />} />
           <Route path="/media" element={<RoutedPage component={MediaBuilder} />} />
+          <Route path="/onboarding" element={<RoutedPage component={Onboarding} />} />
           <Route path="/settings" element={<RoutedPage component={Settings} />} />
           <Route path="/revenue-god-mode" element={<RoutedPage component={FeatureModule} moduleId="revenue" />} />
           <Route path="/scheduler" element={<RoutedPage component={FeatureModule} moduleId="scheduler" />} />

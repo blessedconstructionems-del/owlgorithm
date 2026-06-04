@@ -43,6 +43,11 @@ import {
   getFreshnessState,
   getTopOpportunities,
 } from '@/lib/trendMetrics';
+import {
+  getCreatorNicheLabel,
+  getCreatorPlatformSummary,
+  tailorTrendsForCreator,
+} from '@/lib/creatorProfile';
 
 const DASHBOARD_MOTION = {
   container: { animate: { transition: { staggerChildren: 0.07 } } },
@@ -567,7 +572,7 @@ function NextActionBar({ bestTrend, platformLabel }) {
 }
 
 export default function Dashboard() {
-  const { user } = useApp();
+  const { user, creatorProfile, creatorProfileComplete } = useApp();
   const {
     trends: trendFeed,
     status: trendsStatus,
@@ -580,33 +585,40 @@ export default function Dashboard() {
   const hasTrends = trendFeed.length > 0;
   const isLoading = trendsStatus === 'loading' || trendsStatus === 'idle';
   const isRefreshing = trendsStatus === 'refreshing' || manualRefreshing;
+  const tailoredTrendFeed = useMemo(
+    () => tailorTrendsForCreator(trendFeed, creatorProfile),
+    [creatorProfile, trendFeed],
+  );
+  const channelFocus = creatorProfileComplete
+    ? `${getCreatorNicheLabel(creatorProfile)} on ${getCreatorPlatformSummary(creatorProfile)}`
+    : null;
 
   const opportunities = useMemo(
-    () => getTopOpportunities(trendFeed, DASHBOARD_LIMITS.opportunityListSize),
-    [trendFeed],
+    () => getTopOpportunities(tailoredTrendFeed, DASHBOARD_LIMITS.opportunityListSize),
+    [tailoredTrendFeed],
   );
-  const fastestTrends = useMemo(() => getFastestGrowing(trendFeed, 1), [trendFeed]);
+  const fastestTrends = useMemo(() => getFastestGrowing(tailoredTrendFeed, 1), [tailoredTrendFeed]);
   const history = useMemo(
-    () => aggregateTrendHistory(trendFeed, DASHBOARD_LIMITS.chartPoints),
-    [trendFeed],
+    () => aggregateTrendHistory(tailoredTrendFeed, DASHBOARD_LIMITS.chartPoints),
+    [tailoredTrendFeed],
   );
-  const platforms = useMemo(() => aggregatePlatforms(trendFeed), [trendFeed]);
+  const platforms = useMemo(() => aggregatePlatforms(tailoredTrendFeed), [tailoredTrendFeed]);
   const freshness = useMemo(() => getFreshnessState(lastUpdated), [lastUpdated]);
 
   const stats = useMemo(() => {
-    const saturationCounts = countSaturation(trendFeed);
-    const avgMomentum = averageBy(trendFeed, 'momentum');
-    const avgVelocity = averageBy(trendFeed, 'growthVelocity');
+    const saturationCounts = countSaturation(tailoredTrendFeed);
+    const avgMomentum = averageBy(tailoredTrendFeed, 'momentum');
+    const avgVelocity = averageBy(tailoredTrendFeed, 'growthVelocity');
 
     return {
       ...saturationCounts,
-      count: trendFeed.length,
+      count: tailoredTrendFeed.length,
       activePlatforms: platforms.length,
       avgMomentum,
       avgVelocity,
       marketLabel: getMarketLabel(avgMomentum, avgVelocity),
     };
-  }, [platforms.length, trendFeed]);
+  }, [platforms.length, tailoredTrendFeed]);
 
   const bestTrend = opportunities[0] || null;
   const fastestTrend = fastestTrends[0] || null;
@@ -639,7 +651,7 @@ export default function Dashboard() {
               <h1>Signal Command</h1>
               <p>
                 {hasTrends
-                  ? `${getGreeting()}, ${user?.name || 'there'}. Tracking ${formatCompactNumber(stats.count)} live signals across ${platformLabel}.`
+                  ? `${getGreeting()}, ${user?.name || 'there'}. Tracking ${formatCompactNumber(stats.count)} tailored signals${channelFocus ? ` for ${channelFocus}` : ` across ${platformLabel}`}.`
                   : `${getGreeting()}, ${user?.name || 'there'}. Live trend intelligence appears here as soon as the backend feed returns data.`}
               </p>
             </div>
@@ -680,7 +692,7 @@ export default function Dashboard() {
         ) : null}
 
         <motion.div variants={DASHBOARD_MOTION.item} className="dashboard-primary-grid">
-          <TrendPulseRadar trendItems={trendFeed} />
+          <TrendPulseRadar trendItems={tailoredTrendFeed} />
           <IntelligenceRail stats={stats} freshness={freshness} bestTrend={bestTrend} />
         </motion.div>
 

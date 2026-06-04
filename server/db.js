@@ -50,6 +50,11 @@ if (!userColumns.has('email_verified_at')) {
   db.exec('ALTER TABLE users ADD COLUMN email_verified_at TEXT');
 }
 
+const preferenceColumns = new Set(db.prepare('PRAGMA table_info(user_preferences)').all().map((column) => column.name));
+if (!preferenceColumns.has('creator_profile')) {
+  db.exec("ALTER TABLE user_preferences ADD COLUMN creator_profile TEXT NOT NULL DEFAULT '{}'");
+}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS account_tokens (
     id TEXT PRIMARY KEY,
@@ -115,6 +120,7 @@ function serializeAuthState(row) {
     preferences: {
       environment: row.environment || DEFAULT_ENVIRONMENT,
       sidebarCollapsed: Boolean(row.sidebar_collapsed),
+      creatorProfile: parseJsonSnapshot(row.creator_profile),
     },
   };
 }
@@ -150,7 +156,8 @@ const authStateSelect = `
     users.created_at AS user_created_at,
     users.updated_at AS user_updated_at,
     user_preferences.environment,
-    user_preferences.sidebar_collapsed
+    user_preferences.sidebar_collapsed,
+    user_preferences.creator_profile
   FROM users
   LEFT JOIN user_preferences ON user_preferences.user_id = users.id
 `;
@@ -168,8 +175,8 @@ const insertUserStmt = db.prepare(`
   VALUES (@id, @email, @name, @passwordHash, @emailVerifiedAt, @createdAt, @updatedAt)
 `);
 const insertPreferencesStmt = db.prepare(`
-  INSERT INTO user_preferences (user_id, environment, sidebar_collapsed, created_at, updated_at)
-  VALUES (@userId, @environment, @sidebarCollapsed, @createdAt, @updatedAt)
+  INSERT INTO user_preferences (user_id, environment, sidebar_collapsed, creator_profile, created_at, updated_at)
+  VALUES (@userId, @environment, @sidebarCollapsed, @creatorProfile, @createdAt, @updatedAt)
 `);
 const insertSessionStmt = db.prepare(`
   INSERT INTO sessions (id, user_id, created_at, expires_at, last_seen_at, ip_address, user_agent)
@@ -255,11 +262,12 @@ const markUserEmailVerifiedStmt = db.prepare(`
   WHERE id = @userId
 `);
 const upsertPreferencesStmt = db.prepare(`
-  INSERT INTO user_preferences (user_id, environment, sidebar_collapsed, created_at, updated_at)
-  VALUES (@userId, @environment, @sidebarCollapsed, @createdAt, @updatedAt)
+  INSERT INTO user_preferences (user_id, environment, sidebar_collapsed, creator_profile, created_at, updated_at)
+  VALUES (@userId, @environment, @sidebarCollapsed, @creatorProfile, @createdAt, @updatedAt)
   ON CONFLICT(user_id) DO UPDATE SET
     environment = excluded.environment,
     sidebar_collapsed = excluded.sidebar_collapsed,
+    creator_profile = excluded.creator_profile,
     updated_at = excluded.updated_at
 `);
 
@@ -281,6 +289,7 @@ const createUserTx = db.transaction(({ email, name, passwordHash, emailVerifiedA
     userId,
     environment: DEFAULT_ENVIRONMENT,
     sidebarCollapsed: 0,
+    creatorProfile: '{}',
     createdAt: now,
     updatedAt: now,
   });
@@ -406,18 +415,20 @@ export function updateUserProfile({ userId, name, email }) {
   return getAuthStateByUserId(userId);
 }
 
-export function updateUserPreferences({ userId, environment, sidebarCollapsed }) {
+export function updateUserPreferences({ userId, environment, sidebarCollapsed, creatorProfile }) {
   const current = getAuthStateByUserId(userId);
   const now = new Date().toISOString();
   const next = {
     environment: environment ?? current?.preferences.environment ?? DEFAULT_ENVIRONMENT,
     sidebarCollapsed: sidebarCollapsed ?? current?.preferences.sidebarCollapsed ?? false,
+    creatorProfile: creatorProfile ?? current?.preferences.creatorProfile ?? {},
   };
 
   upsertPreferencesStmt.run({
     userId,
     environment: next.environment,
     sidebarCollapsed: next.sidebarCollapsed ? 1 : 0,
+    creatorProfile: JSON.stringify(next.creatorProfile || {}),
     createdAt: now,
     updatedAt: now,
   });

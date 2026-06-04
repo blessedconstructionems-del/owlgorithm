@@ -161,6 +161,8 @@ export function normalizeMediaRequest(body = {}) {
     sourceImageUrl,
     customConcept: text(body.customConcept),
     audience: text(body.audience, 'beginners who want practical, low-pressure social media ideas'),
+    creatorNiche: text(body.creatorNiche),
+    creatorGoal: text(body.creatorGoal),
     truthNote: text(body.truthNote),
     callToAction: text(body.callToAction, 'follow for the next update'),
   };
@@ -182,6 +184,8 @@ export function buildMediaPlan(request, trend = null) {
     trendPhase ? `Trend phase: ${trendPhase}.` : '',
     trendPlatforms ? `Detected on: ${trendPlatforms}.` : '',
     description ? `Source context: ${description}.` : '',
+    request.creatorNiche ? `Creator niche: ${request.creatorNiche}.` : '',
+    request.creatorGoal ? `Creator goal: ${request.creatorGoal.replace(/_/g, ' ')}.` : '',
     request.truthNote ? `Truth guardrail: ${request.truthNote}.` : 'Truth guardrail: avoid unsupported claims and present this as a practical observation.',
   ].filter(Boolean).join(' ');
 

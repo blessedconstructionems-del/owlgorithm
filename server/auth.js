@@ -45,6 +45,38 @@ const ENVIRONMENT_OPTIONS = new Set([
   'gradient:midnight',
   'gradient:ember',
 ]);
+const CREATOR_NICHES = new Set([
+  'news',
+  'beauty',
+  'business',
+  'fitness',
+  'food',
+  'gaming',
+  'parenting',
+  'education',
+  'tech',
+  'entertainment',
+  'local_service',
+  'exploring',
+]);
+const CREATOR_GOALS = new Set([
+  'grow_audience',
+  'post_consistently',
+  'sell_offer',
+  'build_authority',
+  'find_channel',
+]);
+const CREATOR_PLATFORMS = new Set([
+  'tiktok',
+  'instagram',
+  'youtube',
+  'x',
+  'linkedin',
+  'facebook',
+  'pinterest',
+  'reddit',
+  'google_business',
+]);
 
 const rateLimitState = new Map();
 
@@ -153,7 +185,39 @@ export function validatePassword(password) {
 export function normalizePreferences(input = {}) {
   const environment = ENVIRONMENT_OPTIONS.has(input.environment) ? input.environment : DEFAULT_ENVIRONMENT;
   const sidebarCollapsed = Boolean(input.sidebarCollapsed);
-  return { environment, sidebarCollapsed };
+  return {
+    environment,
+    sidebarCollapsed,
+    creatorProfile: normalizeCreatorProfile(input.creatorProfile),
+  };
+}
+
+function cleanProfileText(value, maxLength = 80) {
+  return `${value || ''}`.replace(/\s+/g, ' ').trim().slice(0, maxLength);
+}
+
+function normalizeCreatorProfile(input = {}) {
+  const niche = CREATOR_NICHES.has(input?.niche) ? input.niche : '';
+  const preferredPlatforms = [];
+  for (const platform of Array.isArray(input?.preferredPlatforms) ? input.preferredPlatforms : []) {
+    if (CREATOR_PLATFORMS.has(platform) && !preferredPlatforms.includes(platform)) {
+      preferredPlatforms.push(platform);
+    }
+  }
+
+  const hasLane = Boolean(niche || cleanProfileText(input?.customNiche));
+
+  return {
+    completed: Boolean(input?.completed && hasLane && preferredPlatforms.length),
+    creatorType: cleanProfileText(input?.creatorType || 'creator', 40) || 'creator',
+    niche,
+    customNiche: cleanProfileText(input?.customNiche, 64),
+    goal: CREATOR_GOALS.has(input?.goal) ? input.goal : 'grow_audience',
+    preferredPlatforms,
+    channelName: cleanProfileText(input?.channelName, 70),
+    createdAt: input?.createdAt || null,
+    updatedAt: input?.updatedAt || null,
+  };
 }
 
 export function hashPassword(password) {
@@ -511,6 +575,7 @@ export function updateAccountPreferences({ userId, preferences }) {
   const next = normalizePreferences({
     environment: preferences?.environment ?? current?.preferences.environment,
     sidebarCollapsed: preferences?.sidebarCollapsed ?? current?.preferences.sidebarCollapsed,
+    creatorProfile: preferences?.creatorProfile ?? current?.preferences.creatorProfile,
   });
   return updateUserPreferences({ userId, ...next });
 }

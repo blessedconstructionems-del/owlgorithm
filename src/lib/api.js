@@ -1,3 +1,5 @@
+import { DEFAULT_CREATOR_PROFILE } from '@/lib/creatorProfile';
+
 export const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 export const STATIC_PREVIEW = ['1', 'true', 'yes'].includes(
   `${import.meta.env.VITE_STATIC_PREVIEW || import.meta.env.VITE_STATIC_DEMO || ''}`.toLowerCase(),
@@ -92,6 +94,7 @@ function staticResponse(endpoint, options = {}) {
       preferences: {
         environment: '/snowy-owl.mp4',
         sidebarCollapsed: false,
+        creatorProfile: DEFAULT_CREATOR_PROFILE,
       },
     };
   }

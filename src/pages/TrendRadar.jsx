@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Link } from 'react-router-dom';
 import {
   LineChart,
   Line,
@@ -18,6 +19,7 @@ import {
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
+import { useApp } from '@/context/AppContext';
 import GlassCard from '@/components/shared/GlassCard';
 import PageWrapper from '@/components/shared/PageWrapper';
 import StatusBadge from '@/components/shared/StatusBadge';
@@ -27,14 +29,23 @@ import CircularProgress from '@/components/shared/CircularProgress';
 import { useTrendsData } from '@/data/trends';
 import TrendDNA from '@/components/trends/TrendDNA';
 import TrendMediaPreview from '@/components/trends/TrendMediaPreview';
+import {
+  getCreatorNicheLabel,
+  getCreatorPlatformSummary,
+  getCreatorTrendPlatformLabels,
+  scoreTrendForCreator,
+  tailorTrendsForCreator,
+} from '@/lib/creatorProfile';
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 const ALL_PLATFORMS = ['All', 'TikTok', 'Instagram', 'YouTube', 'Twitter/X', 'LinkedIn', 'Reddit', 'Pinterest'];
+const MY_PLATFORMS = 'My platforms';
 const ALL_CATEGORIES = ['All', 'Topic', 'Audio', 'Format', 'Hashtag', 'Phrase'];
 const ALL_SATURATIONS = ['All', 'Emerging', 'Rising', 'Peak', 'Declining'];
 const SORT_OPTIONS = [
+  { value: 'creatorFit', label: 'Creator Fit' },
   { value: 'momentum', label: 'Momentum' },
   { value: 'growthVelocity', label: 'Growth Velocity' },
   { value: 'opportunityScore', label: 'Opportunity Score' },
@@ -375,36 +386,50 @@ const cardVariants = {
 // Main Page
 // ---------------------------------------------------------------------------
 export default function TrendRadar() {
+  const { creatorProfile, creatorProfileComplete } = useApp();
   const { trends: allTrends, status, error } = useTrendsData(true);
   // ---- Filter state ----
-  const [selectedPlatforms, setSelectedPlatforms] = useState(['All']);
+  const [selectedPlatforms, setSelectedPlatforms] = useState([creatorProfileComplete ? MY_PLATFORMS : 'All']);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedSaturation, setSelectedSaturation] = useState('All');
-  const [sortBy, setSortBy] = useState('momentum');
+  const [sortBy, setSortBy] = useState(creatorProfileComplete ? 'creatorFit' : 'momentum');
   const [selectedTrend, setSelectedTrend] = useState(null);
+
+  const channelFocus = creatorProfileComplete
+    ? `${getCreatorNicheLabel(creatorProfile)} on ${getCreatorPlatformSummary(creatorProfile)}`
+    : null;
+
+  const platformOptions = useMemo(() => {
+    if (!creatorProfileComplete) return ALL_PLATFORMS;
+    const preferred = [...new Set(getCreatorTrendPlatformLabels(creatorProfile))];
+    return preferred.length ? [MY_PLATFORMS, ...preferred] : ALL_PLATFORMS;
+  }, [creatorProfile, creatorProfileComplete]);
 
   // ---- Platform toggle (multi-select) ----
   const togglePlatform = useCallback((p) => {
-    if (p === 'All') {
-      setSelectedPlatforms(['All']);
+    if (p === 'All' || p === MY_PLATFORMS) {
+      setSelectedPlatforms([p]);
       return;
     }
     setSelectedPlatforms((prev) => {
-      const without = prev.filter((x) => x !== 'All');
+      const fallback = creatorProfileComplete ? MY_PLATFORMS : 'All';
+      const without = prev.filter((x) => x !== 'All' && x !== MY_PLATFORMS);
       if (without.includes(p)) {
         const next = without.filter((x) => x !== p);
-        return next.length === 0 ? ['All'] : next;
+        return next.length === 0 ? [fallback] : next;
       }
       return [...without, p];
     });
-  }, []);
+  }, [creatorProfileComplete]);
 
   // ---- Filtered + sorted trends ----
   const filteredTrends = useMemo(() => {
-    let result = [...allTrends];
+    let result = creatorProfileComplete
+      ? tailorTrendsForCreator(allTrends, creatorProfile)
+      : [...allTrends];
 
     // Platform filter
-    if (!selectedPlatforms.includes('All')) {
+    if (!selectedPlatforms.includes('All') && !selectedPlatforms.includes(MY_PLATFORMS)) {
       result = result.filter((t) =>
         t.platforms.some((p) =>
           selectedPlatforms.some(
@@ -430,6 +455,7 @@ export default function TrendRadar() {
 
     // Sort
     result.sort((a, b) => {
+      if (sortBy === 'creatorFit') return scoreTrendForCreator(b, creatorProfile) - scoreTrendForCreator(a, creatorProfile);
       if (sortBy === 'momentum') return b.momentum - a.momentum;
       if (sortBy === 'growthVelocity') return b.growthVelocity - a.growthVelocity;
       if (sortBy === 'opportunityScore') return b.opportunityScore - a.opportunityScore;
@@ -437,7 +463,7 @@ export default function TrendRadar() {
     });
 
     return result;
-  }, [allTrends, selectedPlatforms, selectedCategory, selectedSaturation, sortBy]);
+  }, [allTrends, creatorProfile, creatorProfileComplete, selectedPlatforms, selectedCategory, selectedSaturation, sortBy]);
 
   return (
     <PageWrapper>
@@ -452,9 +478,16 @@ export default function TrendRadar() {
         ============================================================ */}
         <motion.div variants={stagger.item}>
           <h1 className="text-2xl sm:text-3xl font-bold gradient-text mb-1">Trend Radar</h1>
-          <p className="text-gray-400 text-sm">
-            Track emerging trends before they peak
-          </p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-gray-400 text-sm">
+              {channelFocus
+                ? `Tracking creator-fit signals for ${channelFocus}.`
+                : 'Track emerging trends before they peak.'}
+            </p>
+            <Link to="/onboarding" className="text-xs font-semibold text-cyan-300 hover:text-cyan-200">
+              Edit creator setup
+            </Link>
+          </div>
         </motion.div>
 
         {/* ============================================================
@@ -473,13 +506,14 @@ export default function TrendRadar() {
               Platform
             </span>
             <div className="flex flex-wrap gap-2">
-              {ALL_PLATFORMS.map((p) => (
+              {platformOptions.map((p) => (
                 <Chip
                   key={p}
                   label={p}
                   active={
-                    p === 'All'
+                    p === 'All' || p === MY_PLATFORMS
                       ? selectedPlatforms.includes('All')
+                        || selectedPlatforms.includes(MY_PLATFORMS)
                       : selectedPlatforms.includes(p)
                   }
                   onClick={() => togglePlatform(p)}

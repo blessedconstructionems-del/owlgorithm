@@ -19,14 +19,30 @@ import GlassCard from '@/components/shared/GlassCard';
 import PageWrapper from '@/components/shared/PageWrapper';
 import PlatformIcon from '@/components/shared/PlatformIcon';
 import StatusBadge from '@/components/shared/StatusBadge';
+import { useApp } from '@/context/AppContext';
 import { useTrendsData } from '@/data/trends';
 import { apiRequest } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import {
+  getCreatorAudience,
+  getCreatorMediaPlatformOptions,
+  getCreatorNicheLabel,
+  tailorTrendsForCreator,
+} from '@/lib/creatorProfile';
 
 const GUIDED_STEPS = [
   { prompt: "Say this: I wasn't gonna post this but...", seconds: 4 },
   { prompt: "Now show what you're doing", seconds: 6 },
   { prompt: 'React and end it', seconds: 4 },
+];
+
+const POST_MEDIA_PLATFORMS = [
+  { id: 'tiktok', label: 'TikTok' },
+  { id: 'instagram_reels', label: 'Instagram Reels' },
+  { id: 'youtube_shorts', label: 'YouTube Shorts' },
+  { id: 'linkedin', label: 'LinkedIn' },
+  { id: 'x', label: 'X' },
+  { id: 'pinterest', label: 'Pinterest' },
 ];
 
 function radarPickFrom(trends) {
@@ -79,12 +95,13 @@ function supportedRecorderType() {
   return candidates.find((type) => window.MediaRecorder.isTypeSupported(type)) || '';
 }
 
-function buildFallbackPlan(trend) {
+function buildFallbackPlan(trend, creatorProfile) {
   const trendName = trend?.name || 'beginner posting confidence';
+  const niche = getCreatorNicheLabel(creatorProfile);
   return {
     trendName,
     caption: [
-      `I wasn't gonna post this, but ${trendName} is the easiest thing to start with today.`,
+      `I wasn't gonna post this, but ${trendName} is the easiest ${niche} angle to start with today.`,
       '',
       'Keep it simple. Show the real moment, say the first sentence, and post before you overthink it.',
       '',
@@ -95,8 +112,17 @@ function buildFallbackPlan(trend) {
 }
 
 export default function PostNow() {
+  const { creatorProfile } = useApp();
   const { trends, status: trendsStatus, error: trendsError } = useTrendsData(true);
-  const radarPick = useMemo(() => radarPickFrom(trends), [trends]);
+  const tailoredTrends = useMemo(
+    () => tailorTrendsForCreator(trends, creatorProfile),
+    [creatorProfile, trends],
+  );
+  const radarPick = useMemo(() => radarPickFrom(tailoredTrends), [tailoredTrends]);
+  const defaultPlatform = useMemo(
+    () => getCreatorMediaPlatformOptions(creatorProfile, POST_MEDIA_PLATFORMS)[0] || POST_MEDIA_PLATFORMS[0],
+    [creatorProfile],
+  );
 
   const [started, setStarted] = useState(false);
   const [plan, setPlan] = useState(null);
@@ -123,7 +149,7 @@ export default function PostNow() {
   const streamRef = useRef(null);
   const recordingUrlRef = useRef(null);
 
-  const activePlan = plan || buildFallbackPlan(radarPick);
+  const activePlan = plan || buildFallbackPlan(radarPick, creatorProfile);
   const captionPackage = [
     activePlan.caption,
     (activePlan.hashtags || []).join(' '),
@@ -145,9 +171,9 @@ export default function PostNow() {
             type: 'video',
             trendId: radarPick?.id || '',
             customConcept: radarPick ? '' : 'beginner posting confidence',
-            platform: 'tiktok',
+            platform: defaultPlatform.id,
             style: 'ugc',
-            audience: 'beginners who want practical, low-pressure social media ideas',
+            audience: getCreatorAudience(creatorProfile),
             truthNote: 'Avoid guarantees, fake urgency, and unsupported performance claims.',
             callToAction: 'follow for the next update',
             duration: 8,
@@ -160,7 +186,7 @@ export default function PostNow() {
         }
       } catch (loadError) {
         if (!cancelled) {
-          setPlan(buildFallbackPlan(radarPick));
+          setPlan(buildFallbackPlan(radarPick, creatorProfile));
           setPlanError(loadError.message);
         }
       } finally {
@@ -172,7 +198,7 @@ export default function PostNow() {
     return () => {
       cancelled = true;
     };
-  }, [radarPick]);
+  }, [creatorProfile, defaultPlatform.id, radarPick]);
 
   useEffect(() => {
     if (videoRef.current && stream) {

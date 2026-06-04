@@ -7,6 +7,7 @@ import {
   Camera,
   CheckCircle2,
   Clipboard,
+  Compass,
   Download,
   ExternalLink,
   Globe2,
@@ -27,10 +28,19 @@ import GlassCard from '@/components/shared/GlassCard';
 import PageWrapper from '@/components/shared/PageWrapper';
 import StatusBadge from '@/components/shared/StatusBadge';
 import PlatformIcon from '@/components/shared/PlatformIcon';
+import { useApp } from '@/context/AppContext';
 import { apiRequest } from '@/lib/api';
 import { appRedirectUrl, openHostedSocialConnect, reserveHostedSocialConnectWindow } from '@/lib/nativeBridge';
 import { cn } from '@/lib/utils';
 import { useTrendsData } from '@/data/trends';
+import {
+  getCreatorAudience,
+  getCreatorMediaPlatformOptions,
+  getCreatorNicheLabel,
+  getCreatorPlatformSummary,
+  getCreatorSocialPlatformOptions,
+  tailorTrendsForCreator,
+} from '@/lib/creatorProfile';
 
 const DEFAULT_PLATFORMS = [
   { id: 'tiktok', label: 'TikTok', mobileLabel: 'TikTok', aspectRatio: '9:16', duration: 8 },
@@ -84,12 +94,14 @@ const DEFAULT_FORM = {
   resolution: '480p',
 };
 
-function mediaPayload(source) {
+function mediaPayload(source, creatorProfile = null) {
   return {
     ...source,
     trendId: source.trendId || undefined,
     customConcept: source.trendId ? '' : source.customConcept,
     duration: Number(source.duration),
+    creatorNiche: creatorProfile ? getCreatorNicheLabel(creatorProfile) : '',
+    creatorGoal: creatorProfile?.goal || '',
   };
 }
 
@@ -213,6 +225,7 @@ function ResultBlock({ title, text, onCopy }) {
 
 export default function MediaBuilder() {
   const [searchParams] = useSearchParams();
+  const { creatorProfile, creatorProfileComplete } = useApp();
   const { trends, status: trendsStatus, error: trendsError } = useTrendsData(true);
 
   const [form, setForm] = useState(DEFAULT_FORM);
@@ -255,21 +268,36 @@ export default function MediaBuilder() {
   const recordingUrlRef = useRef(null);
   const autoPlanKeyRef = useRef(null);
 
-  const platformOptions = readiness?.platforms?.length ? readiness.platforms : DEFAULT_PLATFORMS;
+  const tailoredTrends = useMemo(
+    () => tailorTrendsForCreator(trends, creatorProfile),
+    [creatorProfile, trends],
+  );
+  const rawPlatformOptions = useMemo(
+    () => (readiness?.platforms?.length ? readiness.platforms : DEFAULT_PLATFORMS),
+    [readiness],
+  );
+  const platformOptions = useMemo(
+    () => getCreatorMediaPlatformOptions(creatorProfile, rawPlatformOptions),
+    [creatorProfile, rawPlatformOptions],
+  );
   const styleOptions = readiness?.styles?.length ? readiness.styles : DEFAULT_STYLES;
   const selectedTrend = useMemo(
     () => trends.find((trend) => trend.id === form.trendId) || null,
     [form.trendId, trends],
   );
   const selectedPlatform = platformOptions.find((platform) => platform.id === form.platform) || platformOptions[0];
-  const radarPick = useMemo(() => radarPickFrom(trends), [trends]);
+  const radarPick = useMemo(() => radarPickFrom(tailoredTrends), [tailoredTrends]);
   const conceptReady = Boolean(selectedTrend || form.customConcept.trim());
   const activePlan = result?.plan || plan;
   const asset = result?.asset || null;
   const socialContentType = asset?.type || form.type;
-  const socialPlatformOptions = useMemo(
+  const rawSocialPlatformOptions = useMemo(
     () => (socialReadiness?.platforms?.length ? socialReadiness.platforms : DEFAULT_SOCIAL_PLATFORMS),
     [socialReadiness],
+  );
+  const socialPlatformOptions = useMemo(
+    () => getCreatorSocialPlatformOptions(creatorProfile, rawSocialPlatformOptions),
+    [creatorProfile, rawSocialPlatformOptions],
   );
   const supportedSocialPlatforms = useMemo(
     () => socialPlatformOptions.filter((platform) => platform.supports?.includes(socialContentType)),
@@ -332,6 +360,28 @@ export default function MediaBuilder() {
       }));
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    if (!platformOptions.length) return;
+    if (platformOptions.some((platform) => platform.id === form.platform)) return;
+
+    const fallback = platformOptions[0];
+    setForm((current) => ({
+      ...current,
+      platform: fallback.id,
+      duration: fallback.duration || current.duration,
+    }));
+  }, [form.platform, platformOptions]);
+
+  useEffect(() => {
+    if (!creatorProfileComplete) return;
+    const audience = getCreatorAudience(creatorProfile);
+    setForm((current) => (
+      current.audience && current.audience !== DEFAULT_FORM.audience
+        ? current
+        : { ...current, audience }
+    ));
+  }, [creatorProfile, creatorProfileComplete]);
 
   useEffect(() => {
     let cancelled = false;
@@ -475,6 +525,11 @@ export default function MediaBuilder() {
         : lowered.includes('explain') || lowered.includes('teach')
           ? 'explainer'
           : 'ugc';
+    const audience = creatorProfileComplete
+      ? getCreatorAudience(creatorProfile)
+      : lowered.includes('beginner')
+        ? 'beginners who want practical, low-pressure social media ideas'
+        : form.audience;
 
     return {
       ...form,
@@ -483,9 +538,7 @@ export default function MediaBuilder() {
       customConcept: trend?.id ? '' : intent.trim(),
       platform: nextPlatform?.id || 'tiktok',
       style,
-      audience: lowered.includes('beginner')
-        ? 'beginners who want practical, low-pressure social media ideas'
-        : form.audience,
+      audience,
       duration: nextPlatform?.duration || form.duration,
       truthNote: form.truthNote || 'Avoid guarantees, fake urgency, and unsupported performance claims.',
     };
@@ -529,7 +582,7 @@ export default function MediaBuilder() {
   }
 
   const requestPlan = useCallback(async (nextForm) => {
-    const payload = mediaPayload(nextForm);
+    const payload = mediaPayload(nextForm, creatorProfile);
     const ready = Boolean(payload.trendId || payload.customConcept.trim());
     if (!ready) {
       setError('Choose a live trend or enter a custom concept.');
@@ -553,7 +606,7 @@ export default function MediaBuilder() {
     } finally {
       setBusy(null);
     }
-  }, []);
+  }, [creatorProfile]);
 
   useEffect(() => {
     const shouldAutoPlan = ['1', 'true', 'yes'].includes(`${searchParams.get('autoplan') || ''}`.toLowerCase());
@@ -620,7 +673,7 @@ export default function MediaBuilder() {
     try {
       const data = await apiRequest('/api/media/generate', {
         method: 'POST',
-        json: mediaPayload(form),
+        json: mediaPayload(form, creatorProfile),
       });
       setPlan(data.plan);
       setResult(data);
@@ -944,7 +997,9 @@ export default function MediaBuilder() {
               <div className="min-w-0">
                 <h1 className="text-2xl font-bold text-white sm:text-3xl">Creator Studio Pro</h1>
                 <p className="mt-1 max-w-2xl text-sm leading-relaxed text-gray-400">
-                  Advanced image and video generation for upgraded workspaces.
+                  {creatorProfileComplete
+                    ? `Planning for ${getCreatorNicheLabel(creatorProfile)} on ${getCreatorPlatformSummary(creatorProfile)}.`
+                    : 'Create a channel profile first so Studio can narrow platforms, trends, captions, and hashtags.'}
                 </p>
               </div>
             </div>
@@ -967,6 +1022,24 @@ export default function MediaBuilder() {
         {!socialReadiness?.configured ? (
           <div className="mt-3 rounded-xl border border-blue-500/20 bg-blue-500/10 px-4 py-3 text-sm leading-relaxed text-blue-100">
             Social publishing needs UPLOAD_POST_API_KEY on the backend before Post now and Post at best time are enabled.
+          </div>
+        ) : null}
+        {!creatorProfileComplete ? (
+          <div className="mt-3 flex flex-col gap-3 rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-4 text-sm leading-relaxed text-cyan-50 sm:flex-row sm:items-center sm:justify-between">
+            <span className="flex min-w-0 items-start gap-3">
+              <Compass size={18} className="mt-0.5 shrink-0 text-cyan-200" />
+              <span>
+                <strong className="block text-white">Create a channel profile</strong>
+                <span className="mt-1 block text-cyan-100/80">Tell Owlgorithm your niche and platforms before building videos.</span>
+              </span>
+            </span>
+            <Link
+              to="/onboarding?next=/media"
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-cyan-300/30 bg-cyan-300/15 px-3 py-2 text-xs font-bold text-cyan-50 transition-colors hover:bg-cyan-300/20"
+            >
+              Create channel
+              <ArrowRight size={14} />
+            </Link>
           </div>
         ) : null}
         {readinessError || trendsError || error || socialError || notice ? (
@@ -1019,7 +1092,9 @@ export default function MediaBuilder() {
               <TextArea
                 value={studioPrompt}
                 onChange={(event) => setStudioPrompt(event.target.value)}
-                placeholder="Example: make a quick TikTok from the strongest trend and make it sound natural"
+                placeholder={creatorProfileComplete
+                  ? `Example: make a quick ${getCreatorPlatformSummary(creatorProfile)} video for ${getCreatorNicheLabel(creatorProfile)}`
+                  : 'Example: make a quick TikTok from the strongest trend and make it sound natural'}
                 className="min-h-[86px]"
               />
               <div className="grid gap-3 sm:grid-cols-3">
@@ -1090,7 +1165,7 @@ export default function MediaBuilder() {
               onChange={(event) => updateForm('trendId', event.target.value)}
             >
               <option value="" className="bg-gray-950">Use custom concept</option>
-              {trends.map((trend) => (
+              {tailoredTrends.map((trend) => (
                 <option key={trend.id} value={trend.id} className="bg-gray-950">
                   {trend.name}
                 </option>

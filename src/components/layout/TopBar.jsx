@@ -20,6 +20,7 @@ const ROUTE_TITLES = {
   '/platforms': 'Connect Socials',
   '/media': 'Creator Studio Pro',
   '/wellness': 'Wellness',
+  '/onboarding': 'Creator Setup',
   '/settings': 'Settings',
 };
 
@@ -102,6 +103,7 @@ function UserDropdown({ user, isGuest, onClose, onLogout }) {
   }, [onClose]);
 
   const items = [
+    { icon: Sparkles, label: 'Creator Setup', path: '/onboarding' },
     { icon: User, label: 'Profile', path: '/settings' },
     { icon: Settings, label: 'Settings', path: '/settings' },
     ...(isGuest ? [{ icon: LogOut, label: 'Sign In', path: '/auth' }] : []),
